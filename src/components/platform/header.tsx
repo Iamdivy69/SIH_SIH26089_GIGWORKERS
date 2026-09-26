@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Bell, Check, ChevronDown, Menu, MessageSquareWarning } from "lucide-react";
+import { Bell, Check, ChevronDown, ChevronRight, Menu, MessageSquareWarning } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -96,48 +96,65 @@ export function Header({ badges }: { badges: Record<string, number> }) {
           </Button>
         </SheetTrigger>
         <SheetContent side="right" className="w-full overflow-hidden p-0 sm:max-w-sm">
-          <SheetHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-3.5">
-            <SheetTitle className="text-[15px]">Notifications</SheetTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-muted-foreground"
-              onClick={() => markRead.mutate({ all: true })}
-              disabled={unread === 0}
-            >
-              <Check className="mr-1 h-3.5 w-3.5" /> Mark all read
-            </Button>
-          </SheetHeader>
-          <div className="scroll-slim h-[calc(100vh-53px)] overflow-y-auto">
-            {items.length === 0 && <p className="px-5 py-10 text-center text-sm text-muted-foreground">You're all caught up.</p>}
-            {items.map((n) => {
-              const kind = KIND_ICON[n.kind] ?? KIND_ICON.system;
-              return (
-                <button
-                  key={n.id}
-                  className={cn(
-                    "flex w-full gap-3 border-b border-border/60 px-5 py-3.5 text-left transition-colors hover:bg-muted/50",
-                    !n.read && "bg-[oklch(0.965_0.018_155)]",
-                  )}
-                  onClick={() => {
-                    markRead.mutate({ ids: [n.id] });
-                    if (n.route) {
-                      navigate(n.route.name, n.route.params);
-                      useAppStore.getState().setNotificationsOpen(false);
-                    }
-                  }}
-                >
-                  <kind.icon className={cn("mt-0.5 h-4 w-4 shrink-0", kind.className)} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-baseline justify-between gap-2">
-                      <span className={cn("truncate text-[13px]", n.read ? "font-medium" : "font-semibold")}>{n.title}</span>
-                      <span className="shrink-0 text-[10.5px] text-muted-foreground">{relativeTime(n.createdAt)}</span>
+          <div className="flex h-full flex-col">
+            <SheetHeader className="flex-row items-center justify-between space-y-0 border-b px-5 py-3.5">
+              <SheetTitle className="text-[15px]">Notifications</SheetTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-muted-foreground"
+                /* ids (not all:true) so only this role's notifications are touched */
+                onClick={() => markRead.mutate({ ids: (notifications?.items ?? []).map((n) => n.id) })}
+                disabled={unread === 0}
+              >
+                <Check className="mr-1 h-3.5 w-3.5" /> Mark all read
+              </Button>
+            </SheetHeader>
+            <div className="scroll-slim min-h-0 flex-1 overflow-y-auto">
+              {items.length === 0 && <p className="px-5 py-10 text-center text-sm text-muted-foreground">You're all caught up.</p>}
+              {items.map((n) => {
+                const kind = KIND_ICON[n.kind] ?? KIND_ICON.system;
+                return (
+                  <button
+                    key={n.id}
+                    className={cn(
+                      "flex w-full gap-3 border-b border-border/60 px-5 py-3.5 text-left transition-colors hover:bg-muted/50",
+                      !n.read && "bg-[oklch(0.965_0.018_155)]",
+                    )}
+                    onClick={() => {
+                      markRead.mutate({ ids: [n.id] });
+                      if (n.route) {
+                        navigate(n.route.name, n.route.params);
+                        useAppStore.getState().setNotificationsOpen(false);
+                      }
+                    }}
+                  >
+                    <kind.icon className={cn("mt-0.5 h-4 w-4 shrink-0", kind.className)} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className={cn("truncate text-[13px]", n.read ? "font-medium" : "font-semibold")}>{n.title}</span>
+                        <span className="shrink-0 text-[10.5px] text-muted-foreground">{relativeTime(n.createdAt)}</span>
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{n.body}</span>
                     </span>
-                    <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{n.body}</span>
-                  </span>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="border-t p-2.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-center gap-1.5 text-[13px] text-primary"
+                onClick={() => {
+                  navigate(`${role}-notifications`);
+                  useAppStore.getState().setNotificationsOpen(false);
+                }}
+              >
+                View all notifications
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -148,7 +165,9 @@ export function Header({ badges }: { badges: Record<string, number> }) {
           <button className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 transition-colors hover:bg-muted/60" aria-label="Switch demo role">
             <PersonAvatar name={user?.name ?? "Guest"} size="xs" />
             <span className="hidden text-left leading-tight sm:block">
-              <span className="block max-w-[120px] truncate text-[12.5px] font-semibold">{user?.name ?? "Select a role"}</span>
+              <span className="block max-w-[150px] truncate text-[12.5px] font-semibold" title={user?.name}>
+                {user?.name ?? "Select a role"}
+              </span>
               <span className="block text-[10.5px] capitalize text-muted-foreground">{role}</span>
             </span>
             <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
@@ -196,7 +215,9 @@ export function MobileNav({ badges }: { badges: Record<string, number> }) {
   const setOpen = useAppStore((s) => s.setMobileNavOpen);
   const route = useAppStore((s) => s.route);
   const navigate = useAppStore((s) => s.navigate);
+  const { data: notifications } = useNotifications();
   const tabs = MOBILE_NAV[role];
+  const unread = notifications?.unread ?? 0;
 
   return (
     <>
@@ -211,7 +232,7 @@ export function MobileNav({ badges }: { badges: Record<string, number> }) {
       <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden" aria-label="Primary">
         {tabs.map((t) => {
           const active = route.name === t.route || route.name.startsWith(t.route);
-          const badge = t.route === "worker-jobs" ? badges.offers ?? 0 : 0;
+          const badge = t.route === "worker-jobs" ? badges.offers ?? 0 : t.route.endsWith("-notifications") ? unread : 0;
           return (
             <button
               key={t.route}

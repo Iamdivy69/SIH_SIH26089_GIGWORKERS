@@ -2,6 +2,7 @@ import type {
   AppNotification,
   AuditEntry,
   Booking,
+  BookingRecurrence,
   Customer,
   EvidencePhoto,
   Payout,
@@ -598,6 +599,14 @@ interface BookingSeed {
   reviewTags?: string[];
   matchScore?: number;
   customerNotes?: string;
+  /** Standing-order fields — set on every occurrence of a series. */
+  recurrence?: BookingRecurrence;
+  seriesId?: string;
+  occurrenceIndex?: number;
+  /** Fixed charge override — standing orders keep the same rate across occurrences. */
+  charge?: number;
+  /** Hours before the slot this request was created (auto-scheduled occurrences are created at the previous visit's confirmation). */
+  createdHoursBefore?: number;
   /** Seeded booking-scoped chat — hours offset relative to the scheduled slot (negative = before the visit). */
   messages?: { role: "customer" | "worker"; text: string; hoursOffset: number }[];
 }
@@ -713,13 +722,44 @@ PRIYA_HISTORY_JOBS.forEach((job, idx) => {
   });
 });
 
+/* ------------------------------------------------------------------ */
+/* Standing orders (recurring bookings) — the cooperative's core        */
+/* promise of stable, predictable member income. Three series:         */
+/* weekly deep cleaning (Meena), monthly plumbing maintenance          */
+/* (Rakesh), monthly garden upkeep (Arjun). All charges pinned to the   */
+/* catalogue base price — same member, same rate.                      */
+/* ------------------------------------------------------------------ */
+seeds.push(
+  /* so-001 — Ananya ↔ Meena, weekly full-home deep clean (₹1,999) */
+  { id: "bk-801", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(37, 10, 0), status: "completed", rating: 5, reviewComment: "First visit of our weekly plan — spotless as always. Meena's team knows the house now.", reviewTags: ["Thorough", "Repeat visit"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 1, charge: 1999 },
+  { id: "bk-802", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(30, 10, 0), status: "completed", rating: 5, reviewComment: "Second weekly clean — same quality, same rate. Exactly why we set up the standing order.", reviewTags: ["Reliable"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 2, charge: 1999 },
+  { id: "bk-803", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(23, 10, 0), status: "completed", rating: 5, reviewComment: "Weekly clean done while I was at work. They lock up carefully and leave a note.", reviewTags: ["Reliable", "Tidy"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 3, charge: 1999 },
+  { id: "bk-804", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(16, 10, 0), status: "completed", rating: 4, reviewComment: "Good clean. A couple of high shelves were missed this week — mentioned to Meena and they were covered next visit.", reviewTags: ["Tidy"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 4, charge: 1999 },
+  { id: "bk-805", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(9, 10, 0), status: "completed", rating: 5, reviewComment: "Fifth weekly clean and the flat has never stayed this good. Standing orders are a lifesaver.", reviewTags: ["Repeat visit", "Thorough"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 5, charge: 1999 },
+  { id: "bk-806", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAhead(2, 10, 0), status: "confirmed", matchScore: 96, customerNotes: "Spare key with the society office if nobody is home — they know Meena's team.", recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 6, charge: 1999, createdHoursBefore: 11 * 24 },
+
+  /* so-002 — Manish ↔ Rakesh, monthly bathroom plumbing inspection (₹599) */
+  { id: "bk-811", customerId: "c-manish", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p5", title: "Bathroom plumbing inspection", description: "Standing order — monthly bathroom plumbing inspection: fittings, pressure, drainage and flush check.", when: daysAgo(86, 11, 0), status: "completed", rating: 5, reviewComment: "Monthly inspection keeps everything in order — caught a slow leak under the sink before it damaged the cabinet.", reviewTags: ["Skilled", "Honest"], matchScore: 91, recurrence: "monthly", seriesId: "so-002", occurrenceIndex: 1, charge: 599 },
+  { id: "bk-812", customerId: "c-manish", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p5", title: "Bathroom plumbing inspection", description: "Standing order — monthly bathroom plumbing inspection: fittings, pressure, drainage and flush check.", when: daysAgo(56, 11, 0), status: "completed", rating: 5, reviewComment: "Second monthly visit. Rakesh leaves a short checklist note each time — very reassuring.", reviewTags: ["Reliable"], matchScore: 91, recurrence: "monthly", seriesId: "so-002", occurrenceIndex: 2, charge: 599 },
+  { id: "bk-813", customerId: "c-manish", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p5", title: "Bathroom plumbing inspection", description: "Standing order — monthly bathroom plumbing inspection: fittings, pressure, drainage and flush check.", when: daysAgo(26, 11, 0), status: "completed", rating: 5, reviewComment: "Third monthly inspection done quickly. No repairs needed this time — honest as always.", reviewTags: ["Honest"], matchScore: 91, recurrence: "monthly", seriesId: "so-002", occurrenceIndex: 3, charge: 599 },
+  { id: "bk-814", customerId: "c-manish", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p5", title: "Bathroom plumbing inspection", description: "Standing order — monthly bathroom plumbing inspection: fittings, pressure, drainage and flush check.", when: daysAhead(4, 11, 0), status: "pending_acceptance", matchScore: 91, recurrence: "monthly", seriesId: "so-002", occurrenceIndex: 4, charge: 599, createdHoursBefore: 30 * 24 },
+
+  /* so-003 — Divya ↔ Arjun, monthly garden upkeep (₹499) */
+  { id: "bk-821", customerId: "c-divya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Standing order — monthly garden upkeep: weeding, pruning, watering check and green-waste clearance.", when: daysAgo(56, 8, 30), status: "completed", rating: 5, reviewComment: "Monthly upkeep keeps the front garden tidy through the dry weeks. Arjun suggests low-water planting too.", reviewTags: ["Thorough"], matchScore: 89, recurrence: "monthly", seriesId: "so-003", occurrenceIndex: 1, charge: 499 },
+  { id: "bk-822", customerId: "c-divya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Standing order — monthly garden upkeep: weeding, pruning, watering check and green-waste clearance.", when: daysAgo(26, 8, 30), status: "completed", rating: 4, reviewComment: "Good upkeep visit. Some hedge edges were uneven — Arjun corrected them on the spot when pointed out.", reviewTags: ["Tidy"], matchScore: 89, recurrence: "monthly", seriesId: "so-003", occurrenceIndex: 2, charge: 499 },
+  { id: "bk-823", customerId: "c-divya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Standing order — monthly garden upkeep: weeding, pruning, watering check and green-waste clearance.", when: daysAhead(4, 8, 30), status: "confirmed", matchScore: 89, customerNotes: "Side gate is open for the gardener — tools are in the shed.", recurrence: "monthly", seriesId: "so-003", occurrenceIndex: 3, charge: 499, createdHoursBefore: 30 * 24 },
+);
+
 function buildBooking(s: BookingSeed): { booking: Booking; review?: Review; transaction?: Transaction } {
   const service = CATALOG_LOOKUP(s.categoryId, s.serviceId);
-  const charge = service.basePrice + intBetween(-2, 2) * 25;
+  const charge = s.charge ?? service.basePrice + intBetween(-2, 2) * 25;
   const price = computePrice(charge);
   const customer = CUSTOMERS.find((c) => c.id === s.customerId)!;
   const worker = WORKERS.find((w) => w.id === s.workerId)!;
-  const createdAt = new Date(s.when.getTime() - intBetween(20, 72) * HOUR);
+  const createdAt =
+    s.createdHoursBefore !== undefined
+      ? new Date(s.when.getTime() - s.createdHoursBefore * HOUR)
+      : new Date(s.when.getTime() - intBetween(20, 72) * HOUR);
   const reference = `SG-${s.id.slice(-3).toUpperCase()}${(parseInt(s.id.slice(-1), 10) + 4).toString()}`;
 
   const baseBooking: Booking = {
@@ -747,6 +787,9 @@ function buildBooking(s: BookingSeed): { booking: Booking; review?: Review; tran
     evidence: [],
     timeline: [{ id: `ev-${s.id}-0`, at: iso(createdAt), label: "Request created", detail: `${customer.name} · ${s.title}`, by: customer.name }],
     customerNotes: s.customerNotes,
+    recurrence: s.recurrence,
+    seriesId: s.seriesId,
+    occurrenceIndex: s.occurrenceIndex,
     messages: s.messages && (() => {
       /* keep the thread in the past no matter when the demo runs: if the newest
          seeded message would land in the future, shift the whole thread back
@@ -764,6 +807,28 @@ function buildBooking(s: BookingSeed): { booking: Booking; review?: Review; tran
       }));
     })(),
   };
+
+  /* Standing-order timeline: first occurrence is created by the customer;
+     later occurrences are auto-scheduled by the platform at confirmation. */
+  if (s.recurrence) {
+    if ((s.occurrenceIndex ?? 1) === 1) {
+      baseBooking.timeline.splice(1, 0, {
+        id: `ev-${s.id}-so`,
+        at: iso(new Date(createdAt.getTime() + 5 * 60000)),
+        label: "Standing order created",
+        detail: `${s.recurrence === "weekly" ? "Weekly" : "Monthly"} — the next visit is scheduled automatically after each completed service`,
+        by: customer.name,
+      });
+    } else if (["confirmed", "pending_acceptance"].includes(s.status)) {
+      baseBooking.timeline[0] = {
+        id: `ev-${s.id}-so`,
+        at: iso(createdAt),
+        label: "Standing order — next occurrence scheduled automatically",
+        detail: `Occurrence ${s.occurrenceIndex} of ${s.seriesId} · payment authorised for the next visit`,
+        by: "Platform",
+      };
+    }
+  }
 
   const review: Review | undefined = s.rating
     ? {
@@ -837,6 +902,18 @@ function buildBooking(s: BookingSeed): { booking: Booking; review?: Review; tran
     );
     baseBooking.checklist = baseBooking.checklist.map((c, i) => ({ ...c, done: i < 2 }));
     baseBooking.evidence = [{ phase: "before", capturedAt: iso(s.when), label: "Kitchen — before cleaning" }];
+  }
+
+  /* A completed standing-order occurrence schedules the next one automatically. */
+  if (s.recurrence && s.status === "completed") {
+    const nextAt = new Date(s.when.getTime() + (s.recurrence === "weekly" ? 7 : 30) * DAY);
+    baseBooking.timeline.push({
+      id: `ev-${s.id}-so-next`,
+      at: iso(new Date(s.when.getTime() + (service.durationMin + 45) * 60000)),
+      label: "Standing order — next occurrence scheduled automatically",
+      detail: `Occurrence ${(s.occurrenceIndex ?? 1) + 1} of ${s.seriesId} · ${nextAt.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}, same time`,
+      by: "Platform",
+    });
   }
 
   return { booking: baseBooking, review, transaction };
@@ -1029,11 +1106,15 @@ export const SEED_NOTIFICATIONS: AppNotification[] = [
   { id: "nt-11", userId: "c-ananya", kind: "booking", title: "Service completed", body: "Kitchen deep clean by Meena Joshi is complete. Payment will be settled after your confirmation.", createdAt: iso(daysAgo(12, 14, 30)), read: true, route: { name: "customer-booking", params: { bookingId: "bk-103" } } },
   { id: "nt-12", userId: "c-ananya", kind: "booking", title: "Rate your service", body: "How was the fan repair with Vikas Shinde? Your rating keeps quality transparent for everyone.", createdAt: iso(daysAgo(7, 20, 15)), read: true, route: { name: "customer-booking", params: { bookingId: "bk-104" } } },
   { id: "nt-13", userId: "c-ananya", kind: "payment", title: "Invoice ready", body: "Invoice INV-0912 for kitchen deep clean (₹1,047) is available in Payments & Invoices.", createdAt: iso(daysAgo(12, 14, 35)), read: true, route: { name: "customer-payments" } },
+  { id: "nt-14", userId: "c-ananya", kind: "booking", title: "Your standing order continues", body: "Your weekly deep clean with Meena Joshi continues — next visit scheduled in 2 days, awaiting Meena's confirmation.", createdAt: iso(daysAgo(9, 11, 30)), read: true, route: { name: "customer-booking", params: { bookingId: "bk-806" } } },
   /* Admin */
   { id: "nt-20", userId: "u-admin", kind: "support", title: "Dispute escalated", body: "SUP-5846 — 2 BHK vs 1 BHK billing dispute escalated by Kiran Rao. Needs assignment today.", createdAt: iso(daysAgo(0, 11, 30)), read: false, route: { name: "admin-disputes" } },
   { id: "nt-21", userId: "u-admin", kind: "verification", title: "Verification needs action", body: "Ganesh Salunke's address proof has expired. Fresh proof was requested 4 days ago.", createdAt: iso(daysAgo(1, 9, 0)), read: false, route: { name: "admin-verifications" } },
   { id: "nt-22", userId: "u-admin", kind: "system", title: "Capacity gap forecast", body: "Forecast predicts a 12-worker gap for electrical services on Saturday evening (4–8 PM).", createdAt: iso(daysAgo(0, 7, 30)), read: false, route: { name: "admin-forecast" } },
   { id: "nt-23", userId: "u-admin", kind: "payment", title: "Payout batch processed", body: "84 members · ₹4.2L processed for the week of 15–21 Sep.", createdAt: iso(daysAgo(6, 20, 5)), read: true, route: { name: "admin-finance" } },
+  /* Standing orders (recurring bookings) */
+  { id: "nt-30", userId: "w-rakesh", kind: "job", title: "Standing order continues", body: "Standing order: Bathroom plumbing inspection for Manish Agarwal continues — next occurrence in 4 days. You have priority; accept to confirm.", createdAt: iso(daysAgo(26, 12, 35)), read: false, route: { name: "worker-jobs" } },
+  { id: "nt-31", userId: "w-meena", kind: "payment", title: "Standing-order visit settled", body: "₹1,979 for the fifth weekly deep clean (SG-8059) was added to your earnings. Your standing order with this customer continues every week.", createdAt: iso(daysAgo(9, 14, 40)), read: true, route: { name: "worker-earnings" } },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -1054,6 +1135,8 @@ export const SEED_AUDIT: AuditEntry[] = [
   { id: "au-12", at: iso(daysAgo(8, 9, 45)), actor: "Kiran Rao", actorRole: "admin", action: "Updated policy — dispute window 3 → 3 days (no change, reviewed)", entity: "Platform policy", severity: "info" },
   { id: "au-13", at: iso(daysAgo(10, 14, 30)), actor: "Meera Kulkarni", actorRole: "admin", action: "Resolved ticket SUP-5802 (welfare contribution query)", entity: "Support ticket", severity: "info" },
   { id: "au-14", at: iso(daysAgo(12, 11, 15)), actor: "Executive Committee", actorRole: "admin", action: "Closed proposal PRO-2026-009 — passed (131 approve / 33 reject / 8 abstain)", entity: "Governance proposal", severity: "notice" },
+  { id: "au-15", at: iso(daysAgo(26, 11, 45)), actor: "System (scheduler)", actorRole: "admin", action: "Standing order so-002 — next occurrence scheduled automatically", entity: "Booking", severity: "info" },
+  { id: "au-16", at: iso(daysAgo(9, 10, 45)), actor: "System (scheduler)", actorRole: "admin", action: "Standing order so-001 — next occurrence scheduled automatically", entity: "Booking", severity: "info" },
 ];
 
 /* ------------------------------------------------------------------ */

@@ -3,6 +3,7 @@ import type {
   AuditEntry,
   Booking,
   BookingMessage,
+  BookingRecurrence,
   Customer,
   GovernanceData,
   GovernanceProposal,
@@ -66,7 +67,7 @@ interface Store {
 const globalRef = globalThis as unknown as { __sahyogStore?: Store; __sahyogSeedVersion?: number };
 
 /** Bump whenever seed data changes — a stale store from a previous HMR cycle reseeds automatically. */
-const SEED_VERSION = 5;
+const SEED_VERSION = 11;
 
 function seedStore(): Store {
   const store: Store = {
@@ -236,11 +237,14 @@ export function addBooking(input: {
   customerNotes?: string;
   matchScore?: number;
   charge: number;
+  /** Standing-order frequency; absent = one-time booking. */
+  recurrence?: BookingRecurrence;
 }): Booking {
   const store = getStore();
   const n = store.counters.booking++;
   const id = `bk-9${String(n).padStart(3, "0")}`;
   const reference = `SG-${String(3000 + n * 7).slice(-4)}`;
+  const seriesId = input.recurrence ? `so-9${String(n).padStart(3, "0")}` : undefined;
   const customer = customerById(input.customerId);
   const worker = workerById(input.workerId);
   const service = serviceById(input.categoryId, input.serviceId);
@@ -270,16 +274,30 @@ export function addBooking(input: {
       { id: `ev-${id}-1`, at: new Date().toISOString(), label: "Payment authorised", detail: "Held securely until service completion", by: "Platform" },
     ],
     customerNotes: input.customerNotes,
+    recurrence: input.recurrence,
+    seriesId,
+    occurrenceIndex: input.recurrence ? 1 : undefined,
   };
+  if (input.recurrence) {
+    booking.timeline.push({
+      id: `ev-${id}-so`,
+      at: new Date().toISOString(),
+      label: "Standing order created",
+      detail: `${input.recurrence === "weekly" ? "Weekly" : "Monthly"} — the next visit is scheduled automatically after each completed service`,
+      by: customer.name,
+    });
+  }
   store.bookings.unshift(booking);
 
   notify(input.workerId, {
     kind: "job",
-    title: "New job offer",
-    body: `${service?.name ?? "Service request"} at ${customer.locality} — ${new Date(input.scheduledAt).toLocaleString("en-IN", { weekday: "short", hour: "numeric", minute: "2-digit" })}. Match ${input.matchScore ?? 90}%.`,
+    title: input.recurrence ? "New standing-order job offer" : "New job offer",
+    body: input.recurrence
+      ? `${service?.name ?? "Service request"} at ${customer.locality} — ${new Date(input.scheduledAt).toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}. ${input.recurrence === "weekly" ? "Weekly" : "Monthly"} standing order — reliable repeat income. Match ${input.matchScore ?? 90}%.`
+      : `${service?.name ?? "Service request"} at ${customer.locality} — ${new Date(input.scheduledAt).toLocaleString("en-IN", { weekday: "short", hour: "numeric", minute: "2-digit" })}. Match ${input.matchScore ?? 90}%.`,
     route: { name: "worker-jobs" },
   });
-  audit(`New booking ${reference} routed to ${worker.name} (${input.matchScore ?? 90}% match)`, "Booking", customer.name, "customer");
+  audit(`New booking ${reference} routed to ${worker.name} (${input.matchScore ?? 90}% match)${input.recurrence ? " — standing order" : ""}`, "Booking", customer.name, "customer");
   return booking;
 }
 
@@ -368,6 +386,117 @@ export function confirmBooking(booking: Booking, rating?: { rating: number; comm
     route: { name: "worker-earnings" },
   });
   audit(`Payment settled for ${booking.reference} — worker net ₹${booking.price.workerNetPayout}`, "Payment", "Platform", "admin");
+
+  /* Standing orders: each completed occurrence automatically schedules the next one. */
+  if (booking.recurrence) scheduleNextOccurrence(booking);
+}
+
+/* ------------------------------------------------------------------ */
+/* Standing orders — recurrence chain                                   */
+/* ------------------------------------------------------------------ */
+
+/** Days added per recurrence frequency (same time-of-day is preserved). */
+export const RECURRENCE_DAYS: Record<BookingRecurrence, number> = { weekly: 7, monthly: 30 };
+
+/**
+ * When a recurring booking completes, the cooperative schedules the next
+ * occurrence automatically — same member, same rate, same slot time. The
+ * member has priority and must accept to confirm; payment is pre-authorised.
+ * Idempotent: never spawns a second occurrence for the same completed visit.
+ */
+function scheduleNextOccurrence(booking: Booking): Booking | null {
+  if (!booking.recurrence || booking.seriesEnded) return null;
+  const store = getStore();
+  const nextIndex = (booking.occurrenceIndex ?? 1) + 1;
+  if (store.bookings.some((b) => b.seriesId === booking.seriesId && b.occurrenceIndex === nextIndex)) return null;
+
+  const n = store.counters.booking++;
+  const id = `bk-9${String(n).padStart(3, "0")}`;
+  const reference = `SG-${String(3000 + n * 7).slice(-4)}`;
+  const nextAt = new Date(+new Date(booking.scheduledAt) + RECURRENCE_DAYS[booking.recurrence] * 86400000);
+  const now = new Date().toISOString();
+  const customer = customerById(booking.customerId);
+  const worker = workerById(booking.workerId);
+  const whenLabel = nextAt.toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+
+  const next: Booking = {
+    id,
+    reference,
+    customerId: booking.customerId,
+    workerId: booking.workerId,
+    categoryId: booking.categoryId,
+    serviceId: booking.serviceId,
+    title: booking.title,
+    description: booking.description,
+    addressId: booking.addressId,
+    scheduledAt: nextAt.toISOString(),
+    durationMin: booking.durationMin,
+    status: "pending_acceptance",
+    paymentStatus: "authorized",
+    price: { ...booking.price },
+    matchScore: booking.matchScore,
+    createdAt: now,
+    checklist: booking.checklist.map((c) => ({ ...c, id: `chk-${id}-${c.id.split("-").pop()}`, done: false })),
+    evidence: [],
+    timeline: [
+      {
+        id: `ev-${id}-so`,
+        at: now,
+        label: "Standing order — next occurrence scheduled automatically",
+        detail: `Occurrence ${nextIndex} of ${booking.seriesId ?? "the series"} · ${whenLabel}`,
+        by: "Platform",
+      },
+      { id: `ev-${id}-1`, at: now, label: "Payment authorised", detail: "Held securely until service completion", by: "Platform" },
+    ],
+    customerNotes: booking.customerNotes,
+    recurrence: booking.recurrence,
+    seriesId: booking.seriesId,
+    occurrenceIndex: nextIndex,
+  };
+  store.bookings.unshift(next);
+
+  notify(booking.workerId, {
+    kind: "job",
+    title: "Standing order continues",
+    body: `Standing order: ${booking.title} for ${customer.name} continues — next occurrence ${whenLabel}. You have priority; accept to confirm.`,
+    route: { name: "worker-jobs" },
+  });
+  notify(booking.customerId, {
+    kind: "booking",
+    title: "Your standing order continues",
+    body: `Your standing order continues — next visit scheduled ${whenLabel}, awaiting ${worker.name}'s confirmation.`,
+    route: { name: "customer-booking", params: { bookingId: id } },
+  });
+  audit(`Standing order ${booking.seriesId ?? booking.reference} — next occurrence ${reference} scheduled automatically for ${whenLabel}`, "Booking", "Platform", "admin");
+  return next;
+}
+
+/**
+ * Estimated monthly net income from the worker's ACTIVE standing orders —
+ * series that still have a non-cancelled, non-declined occurrence to serve.
+ * Weekly series are annualised to a month (× 4.33), monthly ones count as-is.
+ */
+export function recurringMonthlyFor(workerId: string): { recurringMonthly: number; standingOrders: number } {
+  const store = getStore();
+  const series = new Map<string, { latest: Booking; active: boolean }>();
+  for (const b of store.bookings) {
+    if (b.workerId !== workerId || !b.recurrence || !b.seriesId) continue;
+    const entry = series.get(b.seriesId);
+    if (!entry) {
+      series.set(b.seriesId, { latest: b, active: !["cancelled", "declined", "completed"].includes(b.status) });
+    } else {
+      if ((b.occurrenceIndex ?? 1) >= (entry.latest.occurrenceIndex ?? 1)) entry.latest = b;
+      if (!["cancelled", "declined", "completed"].includes(b.status)) entry.active = true;
+    }
+  }
+  let monthly = 0;
+  let count = 0;
+  for (const { latest, active } of series.values()) {
+    if (!active) continue;
+    count += 1;
+    monthly += latest.price.workerNetPayout * (latest.recurrence === "weekly" ? 4.33 : 1);
+  }
+  return { recurringMonthly: Math.round(monthly), standingOrders: count };
 }
 
 export function welfareProfileFor(workerId: string): WelfareProfile {

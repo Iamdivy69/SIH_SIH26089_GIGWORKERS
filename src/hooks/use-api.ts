@@ -9,6 +9,7 @@ import type {
   AppNotification,
   Booking,
   BookingMessage,
+  BookingRecurrence,
   CustomerOverview,
   FinanceOverview,
   ForecastData,
@@ -137,6 +138,8 @@ export interface CreateBookingInput {
   customerNotes?: string;
   matchScore?: number;
   charge: number;
+  /** Standing-order frequency; omit (or "one-time") for a regular booking. */
+  recurrence?: BookingRecurrence;
 }
 
 export function useCreateBooking() {
@@ -326,6 +329,10 @@ export interface WorkerEarnings {
     grossMonth: number;
     platformFeesMonth: number;
     welfareMonth: number;
+    /** Estimated monthly net from active standing orders (weekly ×4.33, monthly ×1). */
+    recurringMonthly: number;
+    /** Count of active standing-order series. */
+    standingOrders: number;
   };
   weeklySeries: { label: string; value: number }[];
   transactions: Transaction[];

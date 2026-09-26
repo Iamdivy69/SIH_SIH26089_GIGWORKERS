@@ -96,11 +96,21 @@ export function HomeScreen() {
                 onClick={() => navigate("customer-discover", { category: c.id })}
                 className="group flex flex-col rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-md border bg-muted/50">
-                  <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+                <span className="flex items-start justify-between">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-md border bg-muted/50">
+                    <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+                  </span>
+                  <ArrowRight
+                    className="h-4 w-4 -translate-x-1 text-muted-foreground opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100"
+                    strokeWidth={1.9}
+                    aria-hidden
+                  />
                 </span>
                 <span className="mt-3 text-[14px] font-semibold leading-tight">{c.name}</span>
                 <span className="mt-1 text-xs leading-snug text-muted-foreground">{c.tagline}</span>
+                <span className="tnum mt-2.5 text-[11px] font-medium text-muted-foreground">
+                  {c.activeWorkers} verified {c.activeWorkers === 1 ? "member" : "members"}
+                </span>
               </button>
             );
           })}

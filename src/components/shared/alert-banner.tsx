@@ -21,9 +21,18 @@ export function AlertBanner({
   className?: string;
 }) {
   const styles = {
-    critical: { wrap: "border-[oklch(0.90_0.04_27)] bg-[oklch(0.955_0.018_27)]", icon: "text-[oklch(0.525_0.185_27)]" },
-    warning: { wrap: "border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)]", icon: "text-[oklch(0.55_0.12_65)]" },
-    info: { wrap: "border-[oklch(0.89_0.015_240)] bg-[oklch(0.955_0.008_240)]", icon: "text-[oklch(0.47_0.03_240)]" },
+    critical: {
+      wrap: "border-[oklch(0.90_0.04_27)] border-l-[3px] border-l-[oklch(0.625_0.16_27)] bg-[oklch(0.955_0.018_27)]",
+      icon: "text-[oklch(0.525_0.185_27)]",
+    },
+    warning: {
+      wrap: "border-[oklch(0.90_0.06_80)] border-l-[3px] border-l-[oklch(0.70_0.11_75)] bg-[oklch(0.965_0.035_85)]",
+      icon: "text-[oklch(0.55_0.12_65)]",
+    },
+    info: {
+      wrap: "border-[oklch(0.89_0.015_240)] border-l-[3px] border-l-[oklch(0.60_0.03_240)] bg-[oklch(0.955_0.008_240)]",
+      icon: "text-[oklch(0.47_0.03_240)]",
+    },
   }[severity];
   const Icon = severity === "info" ? Info : severity === "warning" ? AlertTriangle : CircleAlert;
 

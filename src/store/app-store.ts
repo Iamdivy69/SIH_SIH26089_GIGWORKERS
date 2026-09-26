@@ -23,6 +23,7 @@ export const ROUTE_PARAMS: Record<string, string[]> = {
   "customer-payments": [],
   "customer-support": [],
   "customer-profile": [],
+  "customer-notifications": [],
   "worker-dashboard": [],
   "worker-jobs": [],
   "worker-job": ["bookingId"],
@@ -35,6 +36,7 @@ export const ROUTE_PARAMS: Record<string, string[]> = {
   "worker-skills": [],
   "worker-support": [],
   "worker-profile": [],
+  "worker-notifications": [],
   "admin-overview": [],
   "admin-forecast": [],
   "admin-workers": [],
@@ -46,6 +48,7 @@ export const ROUTE_PARAMS: Record<string, string[]> = {
   "admin-categories": [],
   "admin-audit": [],
   "admin-policies": [],
+  "admin-notifications": [],
 };
 
 export const ROLE_HOME: Record<Role, string> = {

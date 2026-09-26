@@ -10,6 +10,7 @@ import { BookingDetailScreen } from "./screens/booking-detail";
 import { PaymentsScreen } from "./screens/payments-screen";
 import { SupportScreen } from "./screens/support-screen";
 import { ProfileScreen } from "./screens/profile-screen";
+import { NotificationCenterScreen } from "@/components/shared/notification-center";
 
 /**
  * Customer platform — route switch.
@@ -36,6 +37,8 @@ export function CustomerApp({ route }: { route: AppRoute }) {
       return <SupportScreen />;
     case "customer-profile":
       return <ProfileScreen />;
+    case "customer-notifications":
+      return <NotificationCenterScreen role="customer" />;
     default:
       return <HomeScreen />;
   }

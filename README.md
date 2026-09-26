@@ -36,15 +36,16 @@ The whole journey works end-to-end **in one browser session**, because all three
 
 | Experience | Screens |
 |---|---|
-| **Customer** | Home, service discovery & filters, worker trust profiles, 6-step booking flow with explainable matching, bookings & tracking with booking-scoped chat, confirm + rate, payments & invoices (per-invoice CSV download + full statement export), support, profile |
-| **Worker (member-owner)** | Dashboard, job offers with match explanations, service execution (status flow, checklist, evidence, customer chat), schedule, availability editor, earnings with full payout breakdowns, welfare & benefits portal (insurance, pension pot, claims), cooperative governance (live voting, meetings, dividend), verification, skill academy, support |
-| **Cooperative admin** | Operations overview (KPIs, alerts, trends), 7-day demand forecasting with capacity gaps & recommended actions, worker management (CSV export), verification workflow, bookings monitor (CSV export), dispute resolution, finance & reconciliation, governance publishing, service catalogue rates, platform policies, audit log |
+| **Customer** | Home, service discovery & filters, worker trust profiles, 6-step booking flow with explainable matching **and standing-order (weekly/monthly) scheduling**, bookings & tracking with booking-scoped chat, confirm + rate, payments & invoices (per-invoice CSV download + full statement export), **notification center with day grouping & filters**, support, profile |
+| **Worker (member-owner)** | Dashboard, job offers with match explanations **and standing-order priority offers**, service execution (status flow, checklist, evidence, customer chat), schedule, availability editor, earnings with full payout breakdowns **and recurring-income stat (₹8,569/mo for Meena)**, welfare & benefits portal (insurance, pension pot, claims), cooperative governance (live voting, meetings, dividend), verification, skill academy, **notification center**, support |
+| **Cooperative admin** | Operations overview (KPIs, alerts, trends, **standing-order count**), 7-day demand forecasting with capacity gaps & recommended actions, worker management (CSV export), verification workflow, bookings monitor (CSV export), dispute resolution, finance & reconciliation, governance publishing, service catalogue rates, platform policies, audit log, **notification center** |
 
 ### Cooperative model, visible in the product
 - **Transparent finance** — every price and payout shows the full breakdown; rates (6% platform / 3% welfare / 18% GST / 1% TDS) are set by cooperative policy and editable on the admin *Policies* screen
 - **Welfare** — the customer's welfare contribution lands in the worker's own fund, traceable booking-by-booking
 - **Governance** — members vote on real proposals (one member, one vote); the admin can publish new ones
 - **Explainable allocation** — no black-box "AI recommended": scores, weights and reasons are shown to both customers and workers
+- **Standing orders** — repeat bookings (weekly/monthly) give members stable, predictable income: every completed visit auto-schedules the next with the same member and rate, workers see a quantified recurring-income stat and priority offers, and the admin sees active-series counts
 
 ## Architecture
 

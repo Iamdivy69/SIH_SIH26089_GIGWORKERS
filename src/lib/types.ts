@@ -31,6 +31,8 @@ export interface ServiceCategory {
   description: string;
   services: ServiceItem[];
   coverage: string[];
+  /** Verified, active members in this category (enriched by the API) */
+  activeWorkers?: number;
 }
 
 export type VerificationItemStatus = "verified" | "pending" | "under_review" | "needs_action" | "rejected" | "not_started";
@@ -168,6 +170,9 @@ export interface BookingMessage {
   at: string;
 }
 
+/** Standing-order recurrence — absent means a one-time booking. */
+export type BookingRecurrence = "weekly" | "monthly";
+
 export interface Booking {
   id: string;
   reference: string;
@@ -191,6 +196,14 @@ export interface Booking {
   messages?: BookingMessage[];
   customerNotes?: string;
   cancellationReason?: string;
+  /** Standing order frequency ("weekly"/"monthly"); absent = one-time booking. */
+  recurrence?: BookingRecurrence;
+  /** Standing-order series id — shared by every occurrence (e.g. "so-001"). */
+  seriesId?: string;
+  /** 1-based position of this booking within its series. */
+  occurrenceIndex?: number;
+  /** Set when the series is ended (cancellation) so no further occurrence is spawned. */
+  seriesEnded?: boolean;
 }
 
 export interface Review {
@@ -494,6 +507,8 @@ export interface SeriesPoint {
 
 export interface AdminOverview {
   kpis: AdminKpi;
+  /** Active standing-order series — distinct seriesId with a non-cancelled upcoming occurrence. */
+  standingOrders: number;
   bookingsTrend: SeriesPoint[]; // last 14 days
   categoryDemand: SeriesPoint[];
   quality: SeriesPoint[]; // ratings per category
@@ -533,6 +548,8 @@ export interface CustomerOverview {
   spentThisMonth: number;
   completedCount: number;
   savedWorkers: string[];
+  /** The customer's own active standing-order series count. */
+  activeStandingOrders: number;
 }
 
 export interface WorkerOverview {

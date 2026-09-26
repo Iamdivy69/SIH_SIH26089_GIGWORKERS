@@ -137,7 +137,7 @@ export function WorkerDashboard() {
         <StatTile
           label="Available balance"
           value={money(ov.availableBalance)}
-          sub={`Next payout ${dateShort(ov.nextPayoutDate)} · Bank ••4417`}
+          sub={`Next payout ${dateShort(ov.nextPayoutDate)} · ••4417`}
           emphasis
         />
         <StatTile

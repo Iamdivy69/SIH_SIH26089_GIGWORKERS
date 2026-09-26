@@ -51,7 +51,7 @@ export function DataTable<T>({
       <div className="overflow-x-auto scroll-slim">
         <table className="w-full min-w-[560px] border-collapse text-[13px]">
           <thead>
-            <tr className="border-b">
+            <tr className="border-b border-border bg-muted/70">
               {columns.map((col) => (
                 <th
                   key={col.key}

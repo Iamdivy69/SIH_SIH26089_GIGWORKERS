@@ -1,0 +1,1262 @@
+     1→"use client";
+     2→
+     3→import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+     4→import { format, parseISO } from "date-fns";
+     5→import {
+     6→  AlertTriangle,
+     7→  ArrowLeft,
+     8→  Check,
+     9→  ChevronDown,
+    10→  Clock,
+    11→  Lock,
+    12→  RotateCcw,
+    13→  Search,
+    14→  ShieldCheck,
+    15→} from "lucide-react";
+    16→import { toast } from "sonner";
+    17→import { Button } from "@/components/ui/button";
+    18→import { Input } from "@/components/ui/input";
+    19→import { Label } from "@/components/ui/label";
+    20→import { Textarea } from "@/components/ui/textarea";
+    21→import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+    22→import {
+    23→  ErrorState,
+    24→  FactorBars,
+    25→  MatchBadge,
+    26→  MatchReasonChips,
+    27→  PageHeader,
+    28→  PersonAvatar,
+    29→  RatingStars,
+    30→  ScoreDial,
+    31→  SectionCard,
+    32→  CustomerPriceLines,
+    33→  PaymentAllocation,
+    34→} from "@/components/shared";
+    35→import {
+    36→  useCategories,
+    37→  useCreateBooking,
+    38→  useMatching,
+    39→  useWorkerProfile,
+    40→  type CreateBookingInput,
+    41→} from "@/hooks/use-api";
+    42→import { useAppStore } from "@/store/app-store";
+    43→import { computePrice } from "@/lib/rates";
+    44→import { money, duration } from "@/lib/format";
+    45→import type {
+    46→  Booking,
+    47→  PriceBreakdown,
+    48→  ServiceCategory,
+    49→  ServiceCategoryId,
+    50→  ServiceItem,
+    51→  Worker,
+    52→  WorkerRecommendation,
+    53→} from "@/lib/types";
+    54→import { cn } from "@/lib/utils";
+    55→import {
+    56→  addressById,
+    57→  addressLine,
+    58→  CATEGORY_ICONS,
+    59→  dayChipLabel,
+    60→  DEMO_ADDRESSES,
+    61→  isSlotBookable,
+    62→  nextDays,
+    63→  PAYMENT_METHODS,
+    64→  provisionalScheduledAt,
+    65→  slotToISO,
+    66→  SLOT_GROUPS,
+    67→  workerCoversGroup,
+    68→} from "../constants";
+    69→import { setWorkerMatchContext, peekBookingPrefill, clearBookingPrefill, type BookingPrefill } from "../prefill";
+    70→import { FlowStepper } from "../parts/flow-stepper";
+    71→import { FlowSummaryPanel, FlowSummaryStrip } from "../parts/flow-summary";
+    72→
+    73→/* ------------------------------------------------------------------ */
+    74→/* Flow state (survives navigation away and back within the session)    */
+    75→/* ------------------------------------------------------------------ */
+    76→
+    77→interface FlowState {
+    78→  categoryId: ServiceCategoryId | null;
+    79→  serviceId: string | null;
+    80→  description: string;
+    81→  addressId: string;
+    82→  notes: string;
+    83→  selectedWorkerId: string | null;
+    84→  slotDate: string | null;
+    85→  slotTime: string | null;
+    86→  paymentMethod: string;
+    87→  descriptionTouched: boolean;
+    88→}
+    89→
+    90→interface MatchCache {
+    91→  key: string;
+    92→  recommendations: WorkerRecommendation[];
+    93→  weights: Record<string, number>;
+    94→  provisionalAt: string;
+    95→}
+    96→
+    97→const FRESH_STATE: FlowState = {
+    98→  categoryId: null,
+    99→  serviceId: null,
+   100→  description: "",
+   101→  addressId: DEMO_ADDRESSES[0].id,
+   102→  notes: "",
+   103→  selectedWorkerId: null,
+   104→  slotDate: null,
+   105→  slotTime: null,
+   106→  paymentMethod: PAYMENT_METHODS[0].id,
+   107→  descriptionTouched: false,
+   108→};
+   109→
+   110→/** Module-scoped snapshot so the flow survives "View profile" detours. */
+   111→let flowSnapshot: { state: FlowState; match: MatchCache | null; prefillWorkerId?: string; step: number } | null = null;
+   112→
+   113→const WEIGHT_LABELS: Record<string, string> = {
+   114→  skill: "skills",
+   115→  location: "location",
+   116→  availability: "availability",
+   117→  rating: "rating",
+   118→  experience: "experience",
+   119→};
+   120→
+   121→function timeLabel(time: string): string {
+   122→  return format(parseISO(`2000-01-01T${time}:00`), "h:mm a");
+   123→}
+   124→
+   125→/* ------------------------------------------------------------------ */
+   126→/* Screen                                                              */
+   127→/* ------------------------------------------------------------------ */
+   128→
+   129→export function BookingFlowScreen({ categoryIdParam }: { categoryIdParam?: string }) {
+   130→  const navigate = useAppStore((s) => s.navigate);
+   131→
+   132→  /* ----- one-time init: prefill > snapshot > route param > fresh ----- */
+   133→  const [init] = useState<{ prefill: BookingPrefill | null; restored: boolean; paramCategory: ServiceCategoryId | null }>(() => {
+   134→    const prefill = peekBookingPrefill();
+   135→    const paramCategory = (categoryIdParam as ServiceCategoryId) ?? null;
+   136→    if (prefill) return { prefill, restored: false, paramCategory };
+   137→    if (flowSnapshot && (!paramCategory || flowSnapshot.state.categoryId === paramCategory)) {
+   138→      return { prefill: null, restored: true, paramCategory };
+   139→    }
+   140→    return { prefill: null, restored: false, paramCategory };
+   141→  });
+   142→
+   143→  /* consume the prefill mailbox once mounted (idempotent) */
+   144→  useEffect(() => {
+   145→    clearBookingPrefill();
+   146→  }, []);
+   147→
+   148→  const [state, setState] = useState<FlowState>(() => {
+   149→    if (init.prefill) {
+   150→      return {
+   151→        ...FRESH_STATE,
+   152→        categoryId: init.prefill.categoryId ?? null,
+   153→        serviceId: init.prefill.serviceId ?? null,
+   154→      };
+   155→    }
+   156→    if (init.restored && flowSnapshot) return flowSnapshot.state;
+   157→    return { ...FRESH_STATE, categoryId: init.paramCategory };
+   158→  });
+   159→  const [match, setMatch] = useState<MatchCache | null>(() => (init.restored ? flowSnapshot?.match ?? null : null));
+   160→  const [prefillWorkerId] = useState<string | undefined>(() => init.prefill?.workerId ?? (init.restored ? flowSnapshot?.prefillWorkerId : undefined));
+   161→  const [step, setStep] = useState<number>(() => {
+   162→    if (init.prefill) return init.prefill.serviceId ? 2 : 1;
+   163→    if (init.restored && flowSnapshot) return flowSnapshot.step;
+   164→    return 1;
+   165→  });
+   166→  const [created, setCreated] = useState<Booking | null>(null);
+   167→
+   168→  const patch = useCallback((p: Partial<FlowState>) => setState((s) => ({ ...s, ...p })), []);
+   169→  const goto = (n: number) => {
+   170→    setStep(n);
+   171→    window.scrollTo({ top: 0, behavior: "smooth" });
+   172→  };
+   173→
+   174→  /* ----- persist snapshot ----- */
+   175→  useEffect(() => {
+   176→    if (!created) flowSnapshot = { state, match, prefillWorkerId, step };
+   177→  }, [state, match, prefillWorkerId, step, created]);
+   178→
+   179→  const { data: categories, isLoading: categoriesLoading } = useCategories();
+   180→  const categoryList: ServiceCategory[] = categories ?? [];
+   181→  const category = useMemo(() => categoryList.find((c) => c.id === state.categoryId), [categoryList, state.categoryId]);
+   182→  const service = useMemo(
+   183→    () => category?.services.find((s) => s.id === state.serviceId) ?? null,
+   184→    [category, state.serviceId],
+   185→  );
+   186→  /* charge is fully derived from the selected service */
+   187→  const charge = service?.basePrice ?? 0;
+   188→  const price = useMemo(() => computePrice(charge), [charge]);
+   189→
+   190→  /* ----- matching (step 3) ----- */
+   191→  const matching = useMatching();
+   192→  const requestedKeyRef = useRef<string | null>(null);
+   193→  const matchKey = state.categoryId && state.serviceId ? `${state.categoryId}:${state.serviceId}` : null;
+   194→
+   195→  useEffect(() => {
+   196→    if (step !== 3 || !matchKey || match?.key === matchKey || requestedKeyRef.current === matchKey) return;
+   197→    requestedKeyRef.current = matchKey;
+   198→    const provisionalAt = provisionalScheduledAt();
+   199→    matching.mutate(
+   200→      {
+   201→        categoryId: state.categoryId!,
+   202→        serviceId: state.serviceId!,
+   203→        description: state.description,
+   204→        scheduledAt: provisionalAt,
+   205→        charge,
+   206→      },
+   207→      {
+   208→        onSuccess: (data) =>
+   209→          setMatch({ key: matchKey, recommendations: data.recommendations, weights: data.weights, provisionalAt }),
+   210→      },
+   211→    );
+   212→  }, [step, matchKey, match?.key, matching, state.categoryId, state.serviceId, state.description, charge]);
+   213→
+   214→  const runMatch = () => {
+   215→    requestedKeyRef.current = null;
+   216→    if (matchKey) {
+   217→      const provisionalAt = provisionalScheduledAt();
+   218→      matching.mutate(
+   219→        {
+   220→          categoryId: state.categoryId!,
+   221→          serviceId: state.serviceId!,
+   222→          description: state.description,
+   223→          scheduledAt: provisionalAt,
+   224→          charge,
+   225→        },
+   226→        {
+   227→          onSuccess: (data) =>
+   228→            setMatch({ key: matchKey, recommendations: data.recommendations, weights: data.weights, provisionalAt }),
+   229→        },
+   230→      );
+   231→    }
+   232→  };
+   233→
+   234→  /* ----- selected worker resolution (derived — a directly chosen member
+   235→     is auto-selected until the customer picks someone else) ----- */
+   236→  const recommendations = match?.recommendations ?? [];
+   237→  const directInRecs = Boolean(prefillWorkerId && recommendations.some((r) => r.worker.id === prefillWorkerId));
+   238→  const { data: directProfile } = useWorkerProfile(prefillWorkerId && !directInRecs ? prefillWorkerId : undefined);
+   239→  const autoSelectedId =
+   240→    prefillWorkerId && (recommendations.length > 0 || directProfile) && !state.selectedWorkerId
+   241→      ? prefillWorkerId
+   242→      : null;
+   243→  const selectedWorkerId = state.selectedWorkerId ?? autoSelectedId;
+   244→  const selectedRec = recommendations.find((r) => r.worker.id === selectedWorkerId) ?? null;
+   245→  const selectedWorker: Worker | undefined =
+   246→    selectedRec?.worker ?? (directProfile?.worker.id === selectedWorkerId ? directProfile.worker : undefined);
+   247→  const selectedScore = selectedRec?.score;
+   248→
+   249→  const slotLabel =
+   250→    state.slotDate && state.slotTime ? `${dayChipLabel(state.slotDate)} · ${timeLabel(state.slotTime)}` : undefined;
+   251→
+   252→  /* ----- booking creation ----- */
+   253→  const createBooking = useCreateBooking();
+   254→  const pay = () => {
+   255→    if (!state.categoryId || !state.serviceId || !selectedWorkerId || !state.slotDate || !state.slotTime) return;
+   256→    const input: CreateBookingInput = {
+   257→      workerId: selectedWorkerId,
+   258→      categoryId: state.categoryId,
+   259→      serviceId: state.serviceId,
+   260→      description: state.description.trim(),
+   261→      addressId: state.addressId,
+   262→      scheduledAt: slotToISO(state.slotDate, state.slotTime),
+   263→      customerNotes: state.notes.trim() || undefined,
+   264→      matchScore: selectedScore,
+   265→      charge,
+   266→    };
+   267→    createBooking.mutate(input, {
+   268→      onSuccess: (data) => {
+   269→        flowSnapshot = null;
+   270→        setCreated(data.booking);
+   271→        goto(6);
+   272→        toast.success("Payment authorized", { description: "Your request has been sent to the member." });
+   273→      },
+   274→    });
+   275→  };
+   276→
+   277→  /* ----- validation ----- */
+   278→  const stepValid = (n: number): boolean => {
+   279→    switch (n) {
+   280→      case 1:
+   281→        return Boolean(state.categoryId && state.serviceId && charge > 0);
+   282→      case 2:
+   283→        return state.description.trim().length >= 15;
+   284→      case 3:
+   285→        return Boolean(selectedWorkerId);
+   286→      case 4:
+   287→        return Boolean(state.slotDate && state.slotTime);
+   288→      default:
+   289→        return true;
+   290→    }
+   291→  };
+   292→  const canContinue = stepValid(step);
+   293→
+   294→  const startOver = () => {
+   295→    flowSnapshot = null;
+   296→    setState({ ...FRESH_STATE });
+   297→    setMatch(null);
+   298→    setCreated(null);
+   299→    goto(1);
+   300→  };
+   301→
+   302→  if (categoriesLoading) {
+   303→    return (
+   304→      <PageHeader eyebrow="New request" title="Book a service" description="Loading the cooperative service catalogue…" />
+   305→    );
+   306→  }
+   307→
+   308→  return (
+   309→    <div>
+   310→      <PageHeader
+   311→        eyebrow="New service request"
+   312→        title="Book a service"
+   313→        description="Six steps — service, requirements, an explainable member match, your slot, and a transparent review before you pay."
+   314→        onBack={() => navigate("customer-home")}
+   315→        actions={
+   316→          step < 6 ? (
+   317→            <Button variant="ghost" size="sm" onClick={startOver} className="text-muted-foreground">
+   318→              <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.9} /> Start over
+   319→            </Button>
+   320→          ) : undefined
+   321→        }
+   322→      />
+   323→
+   324→      <div className="rounded-lg border bg-card px-4 py-4 sm:px-5">
+   325→        <FlowStepper step={step} onJump={(n) => n < step && goto(n)} />
+   326→      </div>
+   327→
+   328→      <div className="mt-6 grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+   329→        <aside className="hidden lg:block">
+   330→          <div className="sticky top-[76px]">
+   331→            <FlowSummaryPanel
+   332→              category={category}
+   333→              serviceName={service?.name}
+   334→              charge={charge}
+   335→              worker={selectedWorker}
+   336→              matchScore={selectedScore}
+   337→              slotLabel={slotLabel}
+   338→              addressId={state.addressId}
+   339→            />
+   340→          </div>
+   341→        </aside>
+   342→
+   343→        <div className="min-w-0">
+   344→          <FlowSummaryStrip
+   345→            className="mb-4 lg:hidden"
+   346→            category={category}
+   347→            serviceName={service?.name}
+   348→            charge={charge}
+   349→            worker={selectedWorker}
+   350→            matchScore={selectedScore}
+   351→            slotLabel={slotLabel}
+   352→            addressId={state.addressId}
+   353→          />
+   354→
+   355→          {step === 1 && (
+   356→            <ServiceStep
+   357→              categories={categoryList}
+   358→              state={state}
+   359→              patch={patch}
+   360→              footer={
+   361→                <StepFooter
+   362→                  onNext={() => goto(2)}
+   363→                  nextDisabled={!canContinue}
+   364→                  nextLabel="Continue to requirements"
+   365→                />
+   366→              }
+   367→            />
+   368→          )}
+   369→
+   370→          {step === 2 && (
+   371→            <RequirementsStep
+   372→              state={state}
+   373→              patch={patch}
+   374→              footer={
+   375→                <StepFooter
+   376→                  onBack={() => goto(1)}
+   377→                  onNext={() => goto(3)}
+   378→                  nextDisabled={!canContinue}
+   379→                  nextLabel="Find my member"
+   380→                />
+   381→              }
+   382→            />
+   383→          )}
+   384→
+   385→          {step === 3 && (
+   386→            <MatchStep
+   387→              selectedWorkerId={selectedWorkerId}
+   388→              patch={patch}
+   389→              match={match}
+   390→              matchingPending={matching.isPending}
+   391→              matchingError={matching.isError}
+   392→              onRetry={runMatch}
+   393→              prefillWorkerId={directInRecs ? undefined : prefillWorkerId}
+   394→              onViewProfile={(worker, score, factors) => {
+   395→                setWorkerMatchContext({ workerId: worker.id, score, factors });
+   396→                navigate("customer-worker", { workerId: worker.id });
+   397→              }}
+   398→              footer={
+   399→                <StepFooter
+   400→                  onBack={() => goto(2)}
+   401→                  onNext={() => goto(4)}
+   402→                  nextDisabled={!canContinue}
+   403→                  nextLabel="Choose a slot"
+   404→                />
+   405→              }
+   406→            />
+   407→          )}
+   408→
+   409→          {step === 4 && (
+   410→            <SlotStep
+   411→              state={state}
+   412→              patch={patch}
+   413→              worker={selectedWorker}
+   414→              footer={
+   415→                <StepFooter
+   416→                  onBack={() => goto(3)}
+   417→                  onNext={() => goto(5)}
+   418→                  nextDisabled={!canContinue}
+   419→                  nextLabel="Review & pay"
+   420→                />
+   421→              }
+   422→            />
+   423→          )}
+   424→
+   425→          {step === 5 && (
+   426→            <ReviewStep
+   427→              state={state}
+   428→              patch={patch}
+   429→              category={category}
+   430→              service={service}
+   431→              worker={selectedWorker}
+   432→              score={selectedScore}
+   433→              slotLabel={slotLabel ?? ""}
+   434→              price={price}
+   435→              pending={createBooking.isPending}
+   436→              error={createBooking.error instanceof Error ? createBooking.error.message : undefined}
+   437→              onPay={pay}
+   438→              onBack={() => goto(4)}
+   439→            />
+   440→          )}
+   441→
+   442→          {step === 6 && created && <ConfirmationStep booking={created} worker={selectedWorker} />}
+   443→        </div>
+   444→      </div>
+   445→    </div>
+   446→  );
+   447→}
+   448→
+   449→/* ------------------------------------------------------------------ */
+   450→/* Step footer                                                         */
+   451→/* ------------------------------------------------------------------ */
+   452→
+   453→function StepFooter({
+   454→  onBack,
+   455→  onNext,
+   456→  nextDisabled,
+   457→  nextLabel,
+   458→}: {
+   459→  onBack?: () => void;
+   460→  onNext: () => void;
+   461→  nextDisabled: boolean;
+   462→  nextLabel: string;
+   463→}) {
+   464→  return (
+   465→    <div className="mt-6 flex items-center justify-between gap-3 border-t pt-5">
+   466→      {onBack ? (
+   467→        <Button variant="ghost" size="sm" onClick={onBack} className="text-muted-foreground">
+   468→          <ArrowLeft className="h-4 w-4" strokeWidth={1.9} /> Back
+   469→        </Button>
+   470→      ) : (
+   471→        <span aria-hidden />
+   472→      )}
+   473→      <Button onClick={onNext} disabled={nextDisabled}>
+   474→        {nextLabel}
+   475→      </Button>
+   476→    </div>
+   477→  );
+   478→}
+   479→
+   480→/* ------------------------------------------------------------------ */
+   481→/* Step 1 — Service                                                    */
+   482→/* ------------------------------------------------------------------ */
+   483→
+   484→function ServiceStep({
+   485→  categories,
+   486→  state,
+   487→  patch,
+   488→  footer,
+   489→}: {
+   490→  categories: ServiceCategory[];
+   491→  state: FlowState;
+   492→  patch: (p: Partial<FlowState>) => void;
+   493→  footer: React.ReactNode;
+   494→}) {
+   495→  const category = categories.find((c) => c.id === state.categoryId);
+   496→  if (!category) {
+   497→    return (
+   498→      <SectionCard title="What do you need help with?" description="Choose a service category — all are covered by verified cooperative members.">
+   499→        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+   500→          {categories.map((c) => {
+   501→            const Icon = CATEGORY_ICONS[c.id];
+   502→            return (
+   503→              <button
+   504→                key={c.id}
+   505→                type="button"
+   506→                onClick={() => patch({ categoryId: c.id, serviceId: null })}
+   507→                className="group flex flex-col rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+   508→              >
+   509→                <span className="flex h-9 w-9 items-center justify-center rounded-md border bg-muted/50 text-foreground">
+   510→                  <Icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
+   511→                </span>
+   512→                <span className="mt-3 text-[15px] font-semibold leading-tight">{c.name}</span>
+   513→                <span className="mt-1 text-[13px] leading-snug text-muted-foreground">{c.tagline}</span>
+   514→                <span className="tnum mt-3 text-xs text-muted-foreground">
+   515→                  From {money(Math.min(...c.services.map((s) => s.basePrice)))} · {c.services.length} services
+   516→                </span>
+   517→              </button>
+   518→            );
+   519→          })}
+   520→        </div>
+   521→        {footer}
+   522→      </SectionCard>
+   523→    );
+   524→  }
+   525→
+   526→  return (
+   527→    <SectionCard
+   528→      title={`${category.name} — choose a service`}
+   529→      description={category.description}
+   530→      actions={
+   531→        <Button variant="ghost" size="sm" onClick={() => patch({ categoryId: null, serviceId: null })} className="text-muted-foreground">
+   532→          Change category
+   533→        </Button>
+   534→      }
+   535→    >
+   536→      <fieldset className="space-y-2.5">
+   537→        <legend className="sr-only">Services in {category.name}</legend>
+   538→        {category.services.map((s) => {
+   539→          const active = state.serviceId === s.id;
+   540→          return (
+   541→            <label
+   542→              key={s.id}
+   543→              className={cn(
+   544→                "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
+   545→                active ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30 hover:bg-muted/40",
+   546→              )}
+   547→            >
+   548→              <input
+   549→                type="radio"
+   550→                name="service"
+   551→                className="sr-only"
+   552→                checked={active}
+   553→                onChange={() => patch({ serviceId: s.id })}
+   554→              />
+   555→              <span
+   556→                aria-hidden
+   557→                className={cn(
+   558→                  "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+   559→                  active ? "border-primary" : "border-muted-foreground/40",
+   560→                )}
+   561→              >
+   562→                {active && <span className="h-2 w-2 rounded-full bg-primary" />}
+   563→              </span>
+   564→              <span className="min-w-0 flex-1">
+   565→                <span className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+   566→                  <span className="text-[14px] font-medium">{s.name}</span>
+   567→                  <span className="tnum text-[14px] font-semibold">{money(s.basePrice)}</span>
+   568→                </span>
+   569→                <span className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{s.description}</span>
+   570→                <span className="tnum mt-1.5 block text-xs text-muted-foreground">
+   571→                  {duration(s.durationMin)} · per {s.unit}
+   572→                </span>
+   573→              </span>
+   574→            </label>
+   575→          );
+   576→        })}
+   577→      </fieldset>
+   578→      {footer}
+   579→    </SectionCard>
+   580→  );
+   581→}
+   582→
+   583→/* ------------------------------------------------------------------ */
+   584→/* Step 2 — Requirements                                               */
+   585→/* ------------------------------------------------------------------ */
+   586→
+   587→function RequirementsStep({
+   588→  state,
+   589→  patch,
+   590→  footer,
+   591→}: {
+   592→  state: FlowState;
+   593→  patch: (p: Partial<FlowState>) => void;
+   594→  footer: React.ReactNode;
+   595→}) {
+   596→  const descLength = state.description.trim().length;
+   597→  const descValid = descLength >= 15;
+   598→  return (
+   599→    <SectionCard title="Describe the work" description="This is shared with matched members — the more specific, the better the first-visit fix rate.">
+   600→      <div className="space-y-6">
+   601→        <div>
+   602→          <Label htmlFor="bf-description" className="text-[13px] font-medium">
+   603→            What is the issue? <span className="text-destructive">*</span>
+   604→          </Label>
+   605→          <Textarea
+   606→            id="bf-description"
+   607→            value={state.description}
+   608→            onChange={(e) => patch({ description: e.target.value, descriptionTouched: true })}
+   609→            rows={4}
+   610→            placeholder="e.g. Bedroom lights flicker when the fan is on; two sockets in the study have stopped working since Monday."
+   611→            className="mt-1.5"
+   612→            aria-describedby="bf-description-help"
+   613→          />
+   614→          <p id="bf-description-help" className={cn("mt-1.5 text-xs", state.descriptionTouched && !descValid ? "text-destructive" : "text-muted-foreground")}>
+   615→            {state.descriptionTouched && !descValid
+   616→              ? `Add a little more detail — at least 15 characters (${descLength}/15).`
+   617→              : `${descLength} characters · minimum 15`}
+   618→          </p>
+   619→        </div>
+   620→
+   621→        <div>
+   622→          <p className="text-[13px] font-medium">Service address</p>
+   623→          <fieldset className="mt-2 space-y-2.5">
+   624→            <legend className="sr-only">Service address</legend>
+   625→            {DEMO_ADDRESSES.map((a) => {
+   626→              const active = state.addressId === a.id;
+   627→              return (
+   628→                <label
+   629→                  key={a.id}
+   630→                  className={cn(
+   631→                    "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
+   632→                    active ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30 hover:bg-muted/40",
+   633→                  )}
+   634→                >
+   635→                  <input
+   636→                    type="radio"
+   637→                    name="address"
+   638→                    className="sr-only"
+   639→                    checked={active}
+   640→                    onChange={() => patch({ addressId: a.id })}
+   641→                  />
+   642→                  <span
+   643→                    aria-hidden
+   644→                    className={cn(
+   645→                      "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+   646→                      active ? "border-primary" : "border-muted-foreground/40",
+   647→                    )}
+   648→                  >
+   649→                    {active && <span className="h-2 w-2 rounded-full bg-primary" />}
+   650→                  </span>
+   651→                  <span className="min-w-0">
+   652→                    <span className="text-[14px] font-medium">{a.label}</span>
+   653→                    <span className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{addressLine(a)}</span>
+   654→                  </span>
+   655→                </label>
+   656→              );
+   657→            })}
+   658→          </fieldset>
+   659→        </div>
+   660→
+   661→        <div>
+   662→          <Label htmlFor="bf-notes" className="text-[13px] font-medium">
+   663→            Notes for the member <span className="font-normal text-muted-foreground">(optional)</span>
+   664→          </Label>
+   665→          <Input
+   666→            id="bf-notes"
+   667→            value={state.notes}
+   668→            onChange={(e) => patch({ notes: e.target.value })}
+   669→            placeholder="Gate code, parking, pets at home, best phone number…"
+   670→            className="mt-1.5"
+   671→          />
+   672→        </div>
+   673→      </div>
+   674→      {footer}
+   675→    </SectionCard>
+   676→  );
+   677→}
+   678→
+   679→/* ------------------------------------------------------------------ */
+   680→/* Step 3 — Match                                                      */
+   681→/* ------------------------------------------------------------------ */
+   682→
+   683→function MatchStep({
+   684→  selectedWorkerId,
+   685→  patch,
+   686→  match,
+   687→  matchingPending,
+   688→  matchingError,
+   689→  onRetry,
+   690→  prefillWorkerId,
+   691→  onViewProfile,
+   692→  footer,
+   693→}: {
+   694→  selectedWorkerId: string | null;
+   695→  patch: (p: Partial<FlowState>) => void;
+   696→  match: MatchCache | null;
+   697→  matchingPending: boolean;
+   698→  matchingError: boolean;
+   699→  onRetry: () => void;
+   700→  prefillWorkerId?: string;
+   701→  onViewProfile: (worker: Worker, score: number | undefined, factors: WorkerRecommendation["factors"]) => void;
+   702→  footer: React.ReactNode;
+   703→}) {
+   704→  const recs = match?.recommendations ?? [];
+   705→  const prefillRec = prefillWorkerId ? recs.find((r) => r.worker.id === prefillWorkerId) : undefined;
+   706→  const { data: prefillProfile } = useWorkerProfile(prefillWorkerId && !prefillRec ? prefillWorkerId : undefined);
+   707→  const directWorker = prefillRec?.worker ?? prefillProfile?.worker;
+   708→
+   709→  return (
+   710→    <div className="space-y-4">
+   711→      <section className="rounded-lg border bg-card px-5 py-4">
+   712→        <div className="flex flex-wrap items-start justify-between gap-3">
+   713→          <div>
+   714→            <h2 className="text-[15px] font-semibold tracking-tight">Your matched members</h2>
+   715→            <p className="mt-0.5 text-[13px] text-muted-foreground">
+   716→              Scored against your request — never a black box. Every factor is shown before you choose.
+   717→            </p>
+   718→          </div>
+   719→          {match && (
+   720→            <p className="tnum text-xs text-muted-foreground">
+   721→              {Object.entries(match.weights)
+   722→                .map(([k, v]) => `${WEIGHT_LABELS[k] ?? k} ${v}%`)
+   723→                .join(" · ")}
+   724→            </p>
+   725→          )}
+   726→        </div>
+   727→      </section>
+   728→
+   729→      {matchingPending && (
+   730→        <SectionCard>
+   731→          <div className="flex flex-col items-center justify-center py-10 text-center">
+   732→            <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted/40">
+   733→              <Search className="h-5 w-5 animate-pulse text-primary" strokeWidth={1.9} />
+   734→            </div>
+   735→            <p className="mt-4 text-sm font-medium">Scoring verified members near you…</p>
+   736→            <p className="mt-1 text-[13px] text-muted-foreground">Skill, location, availability, rating and experience — weighted and explained.</p>
+   737→          </div>
+   738→        </SectionCard>
+   739→      )}
+   740→
+   741→      {!matchingPending && matchingError && (
+   742→        <SectionCard>
+   743→          <ErrorState message="The matching service could not be reached." onRetry={onRetry} />
+   744→        </SectionCard>
+   745→      )}
+   746→
+   747→      {!matchingPending && !matchingError && match && (
+   748→        <>
+   749→          {directWorker && !prefillRec && (
+   750→            <DirectWorkerCard
+   751→              worker={directWorker}
+   752→              selected={selectedWorkerId === directWorker.id}
+   753→              onSelect={() => patch({ selectedWorkerId: directWorker.id })}
+   754→              onView={() => onViewProfile(directWorker, undefined, [])}
+   755→            />
+   756→          )}
+   757→          <p className="micro-label px-1">
+   758→            {prefillRec ? "Best matches — including your chosen member" : `Top ${recs.length} of the cooperative's verified members`}
+   759→          </p>
+   760→          <fieldset className="space-y-3">
+   761→            <legend className="sr-only">Recommended members</legend>
+   762→            {recs.map((r) => (
+   763→              <RecommendationCard
+   764→                key={r.worker.id}
+   765→                rec={r}
+   766→                selected={selectedWorkerId === r.worker.id}
+   767→                onSelect={() => patch({ selectedWorkerId: r.worker.id })}
+   768→                onView={() => onViewProfile(r.worker, r.score, r.factors)}
+   769→              />
+   770→            ))}
+   771→          </fieldset>
+   772→        </>
+   773→      )}
+   774→
+   775→      {footer}
+   776→    </div>
+   777→  );
+   778→}
+   779→
+   780→function RecommendationCard({
+   781→  rec,
+   782→  selected,
+   783→  onSelect,
+   784→  onView,
+   785→}: {
+   786→  rec: WorkerRecommendation;
+   787→  selected: boolean;
+   788→  onSelect: () => void;
+   789→  onView: () => void;
+   790→}) {
+   791→  const [open, setOpen] = useState(false);
+   792→  return (
+   793→    <label
+   794→      className={cn(
+   795→        "block cursor-pointer rounded-lg border bg-card p-5 transition-colors",
+   796→        selected ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30",
+   797→      )}
+   798→    >
+   799→      <div className="flex items-start gap-4">
+   800→        <input type="radio" name="worker" className="sr-only" checked={selected} onChange={onSelect} />
+   801→        <div className="hidden shrink-0 sm:block" aria-hidden>
+   802→          <ScoreDial score={rec.score} size={64} />
+   803→        </div>
+   804→        <div className="min-w-0 flex-1">
+   805→          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+   806→            <PersonAvatar name={rec.worker.name} size="sm" />
+   807→            <span className="text-[15px] font-semibold leading-tight">{rec.worker.name}</span>
+   808→            <MatchBadge score={rec.score} size="sm" className="sm:hidden" />
+   809→            <span className="text-[13px] text-muted-foreground">{rec.worker.tradeTitle}</span>
+   810→            {selected && (
+   811→              <span className="ml-auto inline-flex items-center gap-1 rounded-sm border border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.40_0.09_155)]">
+   812→                <Check className="h-3 w-3" strokeWidth={2.4} /> Selected
+   813→              </span>
+   814→            )}
+   815→          </div>
+   816→          <p className="mt-1.5 text-[13px] leading-snug text-muted-foreground">{rec.reasonSummary}</p>
+   817→          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-muted-foreground">
+   818→            <RatingStars value={rec.worker.rating} count={rec.worker.reviewCount} />
+   819→            <span className="tnum">{rec.worker.completedJobs} services</span>
+   820→            <span className="tnum">{rec.worker.distanceKm} km away</span>
+   821→            <span className="tnum font-medium text-foreground">Est. total {money(rec.estimatedPrice.customerTotal)}</span>
+   822→          </div>
+   823→          <div className="mt-3">
+   824→            <MatchReasonChips factors={rec.factors} max={3} />
+   825→          </div>
+   826→          <div className="mt-3 flex flex-wrap items-center gap-2">
+   827→            <Collapsible open={open} onOpenChange={setOpen}>
+   828→              <CollapsibleTrigger asChild>
+   829→                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground">
+   830→                  Why this score
+   831→                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} strokeWidth={1.9} />
+   832→                </Button>
+   833→              </CollapsibleTrigger>
+   834→              <CollapsibleContent>
+   835→                <div className="mt-2 rounded-md border bg-muted/30 p-4">
+   836→                  <FactorBars factors={rec.factors} />
+   837→                </div>
+   838→              </CollapsibleContent>
+   839→            </Collapsible>
+   840→            <Button
+   841→              variant="ghost"
+   842→              size="sm"
+   843→              className="h-7 px-2 text-xs text-muted-foreground"
+   844→              onClick={(e) => {
+   845→                e.preventDefault();
+   846→                onView();
+   847→              }}
+   848→            >
+   849→              View profile
+   850→            </Button>
+   851→          </div>
+   852→        </div>
+   853→      </div>
+   854→    </label>
+   855→  );
+   856→}
+   857→
+   858→function DirectWorkerCard({
+   859→  worker,
+   860→  selected,
+   861→  onSelect,
+   862→  onView,
+   863→}: {
+   864→  worker: Worker;
+   865→  selected: boolean;
+   866→  onSelect: () => void;
+   867→  onView: () => void;
+   868→}) {
+   869→  return (
+   870→    <label
+   871→      className={cn(
+   872→        "block cursor-pointer rounded-lg border bg-card p-5 transition-colors",
+   873→        selected ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30",
+   874→      )}
+   875→    >
+   876→      <div className="flex items-start gap-4">
+   877→        <input type="radio" name="worker" className="sr-only" checked={selected} onChange={onSelect} />
+   878→        <PersonAvatar name={worker.name} size="md" />
+   879→        <div className="min-w-0 flex-1">
+   880→          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+   881→            <span className="text-[15px] font-semibold leading-tight">{worker.name}</span>
+   882→            <span className="rounded-sm border bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">Your selection</span>
+   883→            {selected && (
+   884→              <span className="ml-auto inline-flex items-center gap-1 rounded-sm border border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.40_0.09_155)]">
+   885→                <Check className="h-3 w-3" strokeWidth={2.4} /> Selected
+   886→              </span>
+   887→            )}
+   888→          </div>
+   889→          <p className="mt-0.5 text-[13px] text-muted-foreground">
+   890→            {worker.tradeTitle} · direct request to the member you picked
+   891→          </p>
+   892→          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-muted-foreground">
+   893→            <RatingStars value={worker.rating} count={worker.reviewCount} />
+   894→            <span className="tnum">{worker.completedJobs} services</span>
+   895→            <span className="tnum">{worker.distanceKm} km away</span>
+   896→          </div>
+   897→          <Button
+   898→            variant="ghost"
+   899→            size="sm"
+   900→            className="mt-2 h-7 px-2 text-xs text-muted-foreground"
+   901→            onClick={(e) => {
+   902→              e.preventDefault();
+   903→              onView();
+   904→            }}
+   905→          >
+   906→            View profile
+   907→          </Button>
+   908→        </div>
+   909→      </div>
+   910→    </label>
+   911→  );
+   912→}
+   913→
+   914→/* ------------------------------------------------------------------ */
+   915→/* Step 4 — Slot                                                       */
+   916→/* ------------------------------------------------------------------ */
+   917→
+   918→function SlotStep({
+   919→  state,
+   920→  patch,
+   921→  worker,
+   922→  footer,
+   923→}: {
+   924→  state: FlowState;
+   925→  patch: (p: Partial<FlowState>) => void;
+   926→  worker?: Worker;
+   927→  footer: React.ReactNode;
+   928→}) {
+   929→  const days = useMemo(() => nextDays(7), []);
+   930→  const selectedOutsideHours =
+   931→    state.slotDate && state.slotTime
+   932→      ? !workerCoversGroup(
+   933→          worker,
+   934→          state.slotDate,
+   935→          SLOT_GROUPS.find((g) => g.times.includes(state.slotTime!)) ?? SLOT_GROUPS[0],
+   936→        )
+   937→      : false;
+   938→
+   939→  return (
+   940→    <SectionCard
+   941→      title="Pick a date and time"
+   942→      description={
+   943→        worker
+   944→          ? `${worker.name}'s usual weekly hours are shown against each window — the exact slot is confirmed on acceptance.`
+   945→          : "Choose when the member should visit."
+   946→      }
+   947→    >
+   948→      <div className="space-y-6">
+   949→        <fieldset>
+   950→          <legend className="micro-label mb-2">Date</legend>
+   951→          <div className="flex flex-wrap gap-2">
+   952→            {days.map((d) => {
+   953→              const active = state.slotDate === d;
+   954→              return (
+   955→                <button
+   956→                  key={d}
+   957→                  type="button"
+   958→                  aria-pressed={active}
+   959→                  onClick={() => patch({ slotDate: d, slotTime: state.slotTime && isSlotBookable(d, state.slotTime) ? state.slotTime : null })}
+   960→                  className={cn(
+   961→                    "min-w-[76px] rounded-md border px-3 py-2 text-[13px] font-medium transition-colors",
+   962→                    active
+   963→                      ? "border-primary bg-primary text-primary-foreground"
+   964→                      : "text-foreground hover:border-primary/40 hover:bg-muted/40",
+   965→                  )}
+   966→                >
+   967→                  {dayChipLabel(d)}
+   968→                </button>
+   969→              );
+   970→            })}
+   971→          </div>
+   972→        </fieldset>
+   973→
+   974→        <div className="space-y-4">
+   975→          {SLOT_GROUPS.map((g) => {
+   976→            const covered = state.slotDate ? workerCoversGroup(worker, state.slotDate, g) : true;
+   977→            return (
+   978→              <div key={g.id} className={cn("rounded-lg border p-4", !covered && "bg-muted/20")}>
+   979→                <div className="flex flex-wrap items-center justify-between gap-2">
+   980→                  <p className="text-[13px] font-semibold">
+   981→                    {g.label} <span className="ml-1.5 font-normal text-muted-foreground">{g.hint}</span>
+   982→                  </p>
+   983→                  {state.slotDate && (
+   984→                    <p className={cn("inline-flex items-center gap-1 text-xs", covered ? "text-[oklch(0.40_0.09_155)]" : "text-[oklch(0.55_0.12_65)]")}>
+   985→                      {covered ? (
+   986→                        <>
+   987→                          <Check className="h-3.5 w-3.5" strokeWidth={2.2} /> In {worker?.name ?? "member"}'s usual hours
+   988→                        </>
+   989→                      ) : (
+   990→                        <>
+   991→                          <Clock className="h-3.5 w-3.5" strokeWidth={1.9} /> Outside usual hours
+   992→                        </>
+   993→                      )}
+   994→                    </p>
+   995→                  )}
+   996→                </div>
+   997→                <div className="mt-3 flex flex-wrap gap-2">
+   998→                  {g.times.map((t) => {
+   999→                    const bookable = state.slotDate ? isSlotBookable(state.slotDate, t) : false;
+  1000→                    const active = state.slotTime === t;
+  1001→                    return (
+  1002→                      <button
+  1003→                        key={t}
+  1004→                        type="button"
+  1005→                        disabled={!state.slotDate || !bookable}
+  1006→                        aria-pressed={active}
+  1007→                        title={!bookable && state.slotDate ? "This time has passed" : undefined}
+  1008→                        onClick={() => patch({ slotTime: t })}
+  1009→                        className={cn(
+  1010→                          "tnum rounded-md border px-3.5 py-2 text-[13px] font-medium transition-colors",
+  1011→                          active && "border-primary bg-primary text-primary-foreground",
+  1012→                          !active && bookable && "hover:border-primary/40 hover:bg-muted/40",
+  1013→                          !active && !bookable && "cursor-not-allowed text-muted-foreground/50",
+  1014→                        )}
+  1015→                      >
+  1016→                        {timeLabel(t)}
+  1017→                      </button>
+  1018→                    );
+  1019→                  })}
+  1020→                </div>
+  1021→              </div>
+  1022→            );
+  1023→          })}
+  1024→        </div>
+  1025→
+  1026→        {selectedOutsideHours && worker && (
+  1027→          <p className="flex items-start gap-2 rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-3 py-2.5 text-xs leading-relaxed text-[oklch(0.45_0.10_65)]">
+  1028→            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
+  1029→            {worker.name} is not usually available in this window — they may propose a nearby slot after accepting, or you can pick another time.
+  1030→          </p>
+  1031→        )}
+  1032→      </div>
+  1033→      {footer}
+  1034→    </SectionCard>
+  1035→  );
+  1036→}
+  1037→
+  1038→/* ------------------------------------------------------------------ */
+  1039→/* Step 5 — Review & pay                                               */
+  1040→/* ------------------------------------------------------------------ */
+  1041→
+  1042→function ReviewStep({
+  1043→  state,
+  1044→  patch,
+  1045→  category,
+  1046→  service,
+  1047→  worker,
+  1048→  score,
+  1049→  slotLabel,
+  1050→  price,
+  1051→  pending,
+  1052→  error,
+  1053→  onPay,
+  1054→  onBack,
+  1055→}: {
+  1056→  state: FlowState;
+  1057→  patch: (p: Partial<FlowState>) => void;
+  1058→  category?: ServiceCategory;
+  1059→  service: ServiceItem | null;
+  1060→  worker?: Worker;
+  1061→  score?: number;
+  1062→  slotLabel: string;
+  1063→  price: PriceBreakdown;
+  1064→  pending: boolean;
+  1065→  error?: string;
+  1066→  onPay: () => void;
+  1067→  onBack: () => void;
+  1068→}) {
+  1069→  const address = addressById(state.addressId);
+  1070→  return (
+  1071→    <div className="space-y-4">
+  1072→      <SectionCard title="Review your request" description="Check the details — you'll only be charged once you confirm below.">
+  1073→        <dl className="divide-y divide-border/70 text-sm">
+  1074→          <div className="flex items-start gap-4 py-3">
+  1075→            <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Member</dt>
+  1076→            <dd className="min-w-0 flex-1">
+  1077→              {worker ? (
+  1078→                <span className="flex flex-wrap items-center gap-2">
+  1079→                  <PersonAvatar name={worker.name} size="sm" />
+  1080→                  <span className="font-medium">{worker.name}</span>
+  1081→                  <span className="text-muted-foreground">{worker.tradeTitle}</span>
+  1082→                  {typeof score === "number" && <MatchBadge score={score} size="sm" />}
+  1083→                </span>
+  1084→              ) : (
+  1085→                "—"
+  1086→              )}
+  1087→            </dd>
+  1088→          </div>
+  1089→          <div className="flex items-start gap-4 py-3">
+  1090→            <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Service</dt>
+  1091→            <dd className="min-w-0 flex-1">
+  1092→              <span className="font-medium">{service?.name}</span>
+  1093→              <span className="mt-0.5 block text-[13px] text-muted-foreground">
+  1094→                {category?.name}
+  1095→                {service ? ` · ${duration(service.durationMin)}` : ""}
+  1096→              </span>
+  1097→            </dd>
+  1098→          </div>
+  1099→          <div className="flex items-start gap-4 py-3">
+  1100→            <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Visit</dt>
+  1101→            <dd className="tnum min-w-0 flex-1 font-medium">{slotLabel}</dd>
+  1102→          </div>
+  1103→          <div className="flex items-start gap-4 py-3">
+  1104→            <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Address</dt>
+  1105→            <dd className="min-w-0 flex-1">
+  1106→              <span className="font-medium">{address.label}</span>
+  1107→              <span className="mt-0.5 block text-[13px] text-muted-foreground">{addressLine(address)}</span>
+  1108→            </dd>
+  1109→          </div>
+  1110→          <div className="flex items-start gap-4 py-3">
+  1111→            <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Description</dt>
+  1112→            <dd className="min-w-0 flex-1 text-[13px] leading-relaxed">{state.description.trim()}</dd>
+  1113→          </div>
+  1114→          {state.notes.trim() && (
+  1115→            <div className="flex items-start gap-4 py-3">
+  1116→              <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Notes</dt>
+  1117→              <dd className="min-w-0 flex-1 text-[13px] leading-relaxed">{state.notes.trim()}</dd>
+  1118→            </div>
+  1119→          )}
+  1120→        </dl>
+  1121→      </SectionCard>
+  1122→
+  1123→      <SectionCard title="Your bill — line by line" description="The same breakdown appears on your invoice. Nothing is added later.">
+  1124→        <CustomerPriceLines price={price} />
+  1125→        <div className="mt-5 border-t pt-5">
+  1126→          <p className="micro-label mb-3">Where every rupee goes</p>
+  1127→          <PaymentAllocation price={price} />
+  1128→        </div>
+  1129→      </SectionCard>
+  1130→
+  1131→      <SectionCard title="Payment method" description="UPI is simulated in this prototype — no money moves.">
+  1132→        <fieldset className="space-y-2.5">
+  1133→          <legend className="sr-only">Payment method</legend>
+  1134→          {PAYMENT_METHODS.map((m) => {
+  1135→            const active = state.paymentMethod === m.id;
+  1136→            return (
+  1137→              <label
+  1138→                key={m.id}
+  1139→                className={cn(
+  1140→                  "flex cursor-pointer items-center gap-3 rounded-lg border p-3.5 transition-colors",
+  1141→                  active ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30 hover:bg-muted/40",
+  1142→                )}
+  1143→              >
+  1144→                <input
+  1145→                  type="radio"
+  1146→                  name="payment"
+  1147→                  className="sr-only"
+  1148→                  checked={active}
+  1149→                  onChange={() => patch({ paymentMethod: m.id })}
+  1150→                />
+  1151→                <span
+  1152→                  aria-hidden
+  1153→                  className={cn(
+  1154→                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+  1155→                    active ? "border-primary" : "border-muted-foreground/40",
+  1156→                  )}
+  1157→                >
+  1158→                  {active && <span className="h-2 w-2 rounded-full bg-primary" />}
+  1159→                </span>
+  1160→                <span className="min-w-0 flex-1">
+  1161→                  <span className="text-[14px] font-medium">{m.label}</span>
+  1162→                  <span className="block text-xs text-muted-foreground">{m.note}</span>
+  1163→                </span>
+  1164→                <span className="shrink-0 rounded-sm border bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+  1165→                  {m.tag}
+  1166→                </span>
+  1167→              </label>
+  1168→            );
+  1169→          })}
+  1170→        </fieldset>
+  1171→
+  1172→        {error && (
+  1173→          <div className="mt-4 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-xs leading-relaxed text-destructive">
+  1174→            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
+  1175→            {error}
+  1176→          </div>
+  1177→        )}
+  1178→
+  1179→        <div className="mt-5 space-y-3">
+  1180→          <Button className="w-full" size="lg" onClick={onPay} disabled={pending}>
+  1181→            {pending ? (
+  1182→              "Authorizing payment…"
+  1183→            ) : (
+  1184→              <>
+  1185→                <Lock className="h-4 w-4" strokeWidth={1.9} /> Pay {money(price.customerTotal)} securely
+  1186→              </>
+  1187→            )}
+  1188→          </Button>
+  1189→          <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
+  1190→            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+  1191→            Payment is held securely and settled to your member only after you confirm completion. Simulated UPI — prototype only.
+  1192→          </p>
+  1193→        </div>
+  1194→      </SectionCard>
+  1195→
+  1196→      <div className="flex items-center justify-between border-t pt-5">
+  1197→        <Button variant="ghost" size="sm" onClick={onBack} className="text-muted-foreground">
+  1198→          <ArrowLeft className="h-4 w-4" strokeWidth={1.9} /> Back
+  1199→        </Button>
+  1200→        <span aria-hidden />
+  1201→      </div>
+  1202→    </div>
+  1203→  );
+  1204→}
+  1205→
+  1206→/* ------------------------------------------------------------------ */
+  1207→/* Step 6 — Confirmation                                               */
+  1208→/* ------------------------------------------------------------------ */
+  1209→
+  1210→function ConfirmationStep({ booking, worker }: { booking: Booking; worker?: Worker }) {
+  1211→  const navigate = useAppStore((s) => s.navigate);
+  1212→  return (
+  1213→    <section className="rounded-lg border bg-card p-6 sm:p-8">
+  1214→      <div className="flex flex-col items-center text-center">
+  1215→        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)]">
+  1216→          <Check className="h-7 w-7 text-[oklch(0.45_0.10_155)]" strokeWidth={2} />
+  1217→        </span>
+  1218→        <h2 className="mt-4 text-xl font-semibold tracking-tight">Request sent to {worker?.name ?? "your member"}</h2>
+  1219→        <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">
+  1220→          Booking <span className="tnum font-semibold text-foreground">{booking.reference}</span> · payment of{" "}
+  1221→          <span className="tnum font-semibold text-foreground">{money(booking.price.customerTotal)}</span> authorized and held securely.
+  1222→        </p>
+  1223→      </div>
+  1224→
+  1225→      <div className="mx-auto mt-7 max-w-md space-y-3">
+  1226→        <p className="micro-label">What happens next</p>
+  1227→        {[
+  1228→          {
+  1229→            title: `${worker?.name ?? "The member"} responds`,
+  1230→            detail: worker ? `Typically within ${worker.responseMins} minutes — you'll get a notification when they accept.` : "You'll be notified when they accept.",
+  1231→          },
+  1232→          {
+  1233→            title: "Visit and fix",
+  1234→            detail: `${booking.title} — the member follows a shared checklist and documents the work.`,
+  1235→          },
+  1236→          {
+  1237→            title: "You confirm, payment settles",
+  1238→            detail: "Confirm completion to release payment to the member, then rate the service if you'd like.",
+  1239→          },
+  1240→        ].map((s, i) => (
+  1241→          <div key={s.title} className="flex items-start gap-3 rounded-lg border p-4">
+  1242→            <span className="tnum flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-muted/50 text-xs font-semibold">
+  1243→              {i + 1}
+  1244→            </span>
+  1245→            <div>
+  1246→              <p className="text-[13px] font-semibold">{s.title}</p>
+  1247→              <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">{s.detail}</p>
+  1248→            </div>
+  1249→          </div>
+  1250→        ))}
+  1251→      </div>
+  1252→
+  1253→      <div className="mt-7 flex flex-col justify-center gap-2 sm:flex-row">
+  1254→        <Button onClick={() => navigate("customer-booking", { bookingId: booking.id })}>View booking</Button>
+  1255→        <Button variant="outline" onClick={() => navigate("customer-home")}>
+  1256→          Back home
+  1257→        </Button>
+  1258→      </div>
+  1259→    </section>
+  1260→  );
+  1261→}
+  1262→

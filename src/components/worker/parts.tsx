@@ -3,7 +3,7 @@
 import { ReactNode, useState } from "react";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
-import { Check, ChevronDown, ChevronRight, Clock, MapPin, MessageSquare, Navigation, Phone, Timer } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Clock, MapPin, MessageSquare, Navigation, Phone, Repeat, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -83,6 +83,42 @@ export function OfferTag({ kind }: { kind: "direct" | "pool" }) {
     <span className="inline-flex items-center rounded-sm border bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
       Open pool
     </span>
+  );
+}
+
+/** "Weekly" / "Monthly" for a booking's recurrence. */
+export function recurrenceLabel(recurrence: "weekly" | "monthly"): string {
+  return recurrence === "weekly" ? "Weekly" : "Monthly";
+}
+
+/** Amber tag marking standing-order jobs — the stable-income signal for members. */
+export function StandingOrderTag({ recurrence, className }: { recurrence: "weekly" | "monthly"; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]",
+        className,
+      )}
+    >
+      <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
+      Standing order
+    </span>
+  );
+}
+
+/** Quiet note explaining what a standing order means for the member's income. */
+export function StandingOrderNote({ recurrence, className }: { recurrence: "weekly" | "monthly"; className?: string }) {
+  return (
+    <p
+      className={cn(
+        "flex items-start gap-2 rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-3 py-2 text-xs leading-relaxed text-[oklch(0.45_0.10_65)]",
+        className,
+      )}
+    >
+      <Repeat className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.9} aria-hidden />
+      This customer books {recurrence === "weekly" ? "weekly" : "monthly"} — reliable income builds your patronage dividend. The next occurrence is
+      scheduled automatically after each completed visit, with your priority.
+    </p>
   );
 }
 
@@ -217,6 +253,7 @@ export function BookingOfferCard({ booking }: { booking: Booking }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <OfferTag kind="direct" />
+            {booking.recurrence && <StandingOrderTag recurrence={booking.recurrence} />}
             <span className="micro-label">
               {customer ? `${customer.name} chose you` : "Customer request"} · {relativeTime(booking.createdAt)}
             </span>
@@ -233,6 +270,7 @@ export function BookingOfferCard({ booking }: { booking: Booking }) {
         ]}
       />
       <p className="mt-2.5 text-[13px] leading-relaxed text-muted-foreground">{booking.description}</p>
+      {booking.recurrence && <StandingOrderNote recurrence={booking.recurrence} className="mt-2.5" />}
       {booking.customerNotes && (
         <p className="mt-2 rounded-md bg-muted/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
           <span className="font-medium text-foreground/80">Customer note:</span> {booking.customerNotes}
@@ -296,6 +334,12 @@ export function JobRowCard({
               <Timer className="h-3 w-3" strokeWidth={1.9} aria-hidden />
               {duration(booking.durationMin)}
             </span>
+            {booking.recurrence && (
+              <span className="inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-px text-[10.5px] font-medium text-[oklch(0.45_0.10_65)]">
+                <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
+                {recurrenceLabel(booking.recurrence).toLowerCase()}
+              </span>
+            )}
             {showCustomer && detail.data && (
               <span className="inline-flex items-center gap-1 text-muted-foreground">
                 <MapPin className="h-3 w-3" strokeWidth={1.9} aria-hidden />

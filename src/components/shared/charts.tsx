@@ -61,7 +61,7 @@ export function TrendAreaChart({ data, height = 200, currency, className }: { da
             stroke="var(--primary)"
             strokeWidth={1.75}
             fill="url(#trendFill)"
-            dot={{ r: 2, fill: "var(--primary)", fillOpacity: 0.55, strokeWidth: 0 }}
+            dot={{ r: 2.5, fill: "var(--primary)", fillOpacity: 0.8, strokeWidth: 0 }}
             activeDot={{ r: 3.5, strokeWidth: 0 }}
           />
         </AreaChart>
@@ -159,7 +159,7 @@ export function LineTrend({ data, height = 200, suffix, max, className }: { data
             name="Value"
             stroke="var(--chart-6)"
             strokeWidth={1.75}
-            dot={{ r: 2, fill: "var(--chart-6)", fillOpacity: 0.55, strokeWidth: 0 }}
+            dot={{ r: 2.5, fill: "var(--chart-6)", fillOpacity: 0.8, strokeWidth: 0 }}
             activeDot={{ r: 3.5, strokeWidth: 0 }}
           />
         </LineChart>

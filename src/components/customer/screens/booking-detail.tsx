@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import {
+  CalendarClock,
   CalendarPlus,
   Camera,
   MessageSquare,
@@ -40,8 +41,9 @@ import { useBooking, useCancelBooking, useConfirmBooking, useRateBooking } from 
 import { useAppStore } from "@/store/app-store";
 import { dateTimeLabel, dateShort, duration, money, relativeTime } from "@/lib/format";
 import type { Booking } from "@/lib/types";
-import { addressById, addressLine } from "../constants";
+import { addressById, addressLine, nextOccurrenceAt, recurrenceLabel } from "../constants";
 import { RatingInput } from "../parts/rating-input";
+import { StandingOrderChip } from "../parts/booking-card";
 
 function statusMessage(booking: Booking, worker?: { name: string }): { severity: "info" | "warning"; title: string; detail: string } {
   const name = worker?.name ?? "your member";
@@ -130,6 +132,9 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
   const cancellable = ["pending_acceptance", "confirmed"].includes(booking.status);
   const canConfirm = booking.status === "awaiting_confirmation";
   const canRate = booking.status === "completed" && !review;
+  /* When the next standing-order occurrence is auto-scheduled (+7/+30 days, same time). */
+  const nextVisit = booking.recurrence ? nextOccurrenceAt(booking) : null;
+  const nextVisitLabel = nextVisit ? dateTimeLabel(nextVisit) : "—";
 
   const resetRating = () => {
     setRating(0);
@@ -156,9 +161,14 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Cancel this booking?</AlertDialogTitle>
+                    <AlertDialogTitle>{booking.recurrence ? "End standing order & cancel booking?" : "Cancel this booking?"}</AlertDialogTitle>
                     <AlertDialogDescription asChild>
                       <div className="space-y-3">
+                        {booking.recurrence && (
+                          <span className="block rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-3 py-2 text-[13px] font-medium text-[oklch(0.45_0.10_65)]">
+                            This also ends the standing order series — no further {recurrenceLabel(booking.recurrence).toLowerCase()} visits will be scheduled.
+                          </span>
+                        )}
                         <span className="block">
                           {worker.name} will be notified and the slot released. The held amount of{" "}
                           <span className="tnum font-semibold text-foreground">{money(booking.price.customerTotal)}</span> is
@@ -180,7 +190,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                       className="bg-destructive text-white hover:bg-destructive/90"
                       onClick={() => cancelBooking.mutate({ id: booking.id, reason: cancelReason.trim() || undefined })}
                     >
-                      Cancel booking
+                      {booking.recurrence ? "End standing order" : "Cancel booking"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -353,6 +363,37 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
 
           {/* Right rail */}
           <div className="space-y-6">
+            {booking.recurrence && (
+              <SectionCard
+                title="Standing order"
+                description={`Series ${booking.seriesId ?? "—"} · same member, same rate, priority scheduling`}
+              >
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StandingOrderChip recurrence={booking.recurrence} />
+                    <span className="tnum text-[13px] text-muted-foreground">
+                      Occurrence {booking.occurrenceIndex ?? 1} of the series
+                    </span>
+                  </div>
+                  {booking.seriesEnded ? (
+                    <p className="rounded-md border bg-muted/30 px-3 py-2.5 text-[13px] leading-relaxed text-muted-foreground">
+                      This standing order was ended — no further {recurrenceLabel(booking.recurrence).toLowerCase()} visits will be scheduled.
+                    </p>
+                  ) : (
+                    <p className="flex items-start gap-2 rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-3 py-2.5 text-[13px] leading-relaxed text-[oklch(0.45_0.10_65)]">
+                      <CalendarClock className="tnum mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
+                      {booking.status === "completed"
+                        ? `The next visit was scheduled automatically for ${nextVisitLabel}.`
+                        : `After you confirm this visit, the next one is scheduled automatically for ${nextVisitLabel}.`}
+                    </p>
+                  )}
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Standing orders give our members stable, predictable income — the cooperative's core promise. {worker.name} keeps priority on every occurrence.
+                  </p>
+                </div>
+              </SectionCard>
+            )}
+
             <SectionCard title="What you pay" description="Line-by-line, exactly as authorized at booking.">
               <CustomerPriceLines price={booking.price} />
               <div className="mt-5 border-t pt-5">

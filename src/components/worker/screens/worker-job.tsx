@@ -29,7 +29,7 @@ import {
   StatusTimeline,
   WorkerPayoutCard,
 } from "@/components/shared";
-import { ContactActions, QueryGate, RequirementLine, simulatedToast } from "../parts";
+import { ContactActions, QueryGate, RequirementLine, simulatedToast, StandingOrderTag, recurrenceLabel } from "../parts";
 import { dateShort, dateTimeLabel, duration, money, time } from "@/lib/format";
 import type { Booking, BookingStatus } from "@/lib/types";
 
@@ -147,6 +147,7 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
               }
               actions={
                 <div className="flex flex-wrap items-center gap-2">
+                  {booking.recurrence && <StandingOrderTag recurrence={booking.recurrence} />}
                   <StatusBadge status={booking.status} />
                   <Button
                     variant="outline"
@@ -197,7 +198,7 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                       <Stepper current={step} times={times} lastLabel={booking.status === "awaiting_confirmation" ? "Awaiting customer" : undefined} />
 
                       {booking.status === "confirmed" && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-[oklch(0.965_0.018_155)] px-4 py-3">
                           <p className="text-[13px] text-muted-foreground">Headed out? Let {customer.name.split(" ")[0]} know you're on the way.</p>
                           <Button size="sm" onClick={() => statusMutation.mutate({ id: booking.id, status: "en_route" })} disabled={statusMutation.isPending}>
                             I'm on the way
@@ -205,7 +206,7 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                         </div>
                       )}
                       {booking.status === "en_route" && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-[oklch(0.965_0.018_155)] px-4 py-3">
                           <p className="text-[13px] text-muted-foreground">Customer notified that you're on the way. Mark arrival at {" "}
                             {address.locality}.
                           </p>
@@ -215,7 +216,7 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                         </div>
                       )}
                       {booking.status === "arrived" && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-muted/40 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-[oklch(0.965_0.018_155)] px-4 py-3">
                           <p className="text-[13px] text-muted-foreground">Capture the before photo, then start the service and checklist.</p>
                           <Button size="sm" onClick={() => statusMutation.mutate({ id: booking.id, status: "in_progress" })} disabled={statusMutation.isPending}>
                             Start service
@@ -400,6 +401,22 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                       </div>
                       <p className="max-w-[170px] text-right text-xs leading-relaxed text-muted-foreground">{paymentNote}</p>
                     </div>
+                    {booking.recurrence && (
+                      <div className="rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-[13px] font-semibold text-[oklch(0.45_0.10_65)]">
+                            Standing order · {recurrenceLabel(booking.recurrence)}
+                          </p>
+                          <span className="tnum text-[11px] font-medium text-[oklch(0.45_0.10_65)]/80">
+                            Occurrence {booking.occurrenceIndex ?? 1} of the series
+                          </span>
+                        </div>
+                        <p className="mt-1.5 text-xs leading-relaxed text-[oklch(0.45_0.10_65)]/90">
+                          This customer books {booking.recurrence === "weekly" ? "weekly" : "monthly"} — reliable income builds your patronage
+                          dividend. The next occurrence is scheduled automatically after each completed visit, with your priority.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </SectionCard>
 

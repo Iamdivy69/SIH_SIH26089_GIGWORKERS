@@ -2,6 +2,7 @@
 
 import { NAV_BY_ROLE } from "./nav";
 import { useAppStore } from "@/store/app-store";
+import { useNotifications } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
 import { BrandWordmark } from "./brand";
 
@@ -35,6 +36,9 @@ export function Sidebar({
   const route = useAppStore((s) => s.route);
   const navigate = useAppStore((s) => s.navigate);
   const groups = NAV_BY_ROLE[role];
+  /* notifications badge comes from the shared role-scoped query (kept fresh by the shell) */
+  const { data: notifications } = useNotifications();
+  const liveBadges = { ...badges, notifications: notifications?.unread ?? 0 };
 
   return (
     <div className={cn("flex h-full flex-col bg-sidebar", className)}>
@@ -50,7 +54,7 @@ export function Sidebar({
             <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const active = route.name === item.route || PARENT_ROUTE[route.name] === item.route;
-                const badge = item.badgeKey ? badges[item.badgeKey] ?? 0 : 0;
+                const badge = item.badgeKey ? liveBadges[item.badgeKey] ?? 0 : 0;
                 return (
                   <li key={item.route}>
                     <button

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { ArrowRight, TrendingUp } from "lucide-react";
+import { ArrowRight, Repeat, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -124,6 +124,22 @@ export function AdminOverviewScreen() {
             { label: "Welfare pool", value: moneyCompact(data.kpis.welfarePoolTotal), sub: "member benefit funds" },
           ]}
         />
+      )}
+
+      {/* Standing orders — the cooperative's stable-income promise */}
+      {loading ? (
+        <Skeleton className="mb-6 h-[54px] rounded-lg" />
+      ) : (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 rounded-lg border bg-card px-4 py-3">
+          <p className="flex min-w-0 items-center gap-2.5 text-[13px]">
+            <Repeat className="h-4 w-4 shrink-0 text-[oklch(0.45_0.10_155)]" strokeWidth={1.9} aria-hidden />
+            <span className="tnum font-semibold text-[oklch(0.45_0.10_155)]">Standing orders active: {num(data.standingOrders)}</span>
+            <span className="text-muted-foreground">recurring series with an upcoming visit</span>
+          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Weekly and monthly standing orders give members stable, predictable income — the cooperative's core promise.
+          </p>
+        </div>
       )}
 
       {/* Flow + quality */}

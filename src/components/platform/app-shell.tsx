@@ -63,7 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main id="main" className="mx-auto w-full max-w-[1200px] flex-1 px-4 pb-24 pt-6 sm:px-6 md:pb-10">
           {children}
         </main>
-        <footer className="mt-auto border-t bg-background">
+        <footer className="mt-auto border-t bg-muted/30">
           <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-4 text-[11.5px] text-muted-foreground sm:px-6">
             <p>
               Sahyog — Cooperative Gig Services Platform · Smart India Hackathon 2025 (SIH26089) · Interactive prototype, all data simulated

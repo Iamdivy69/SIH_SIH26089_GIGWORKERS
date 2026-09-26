@@ -70,6 +70,34 @@ export const RATING_TAGS = [
 ] as const;
 
 /* ------------------------------------------------------------------ */
+/* Standing orders (recurring bookings)                                 */
+/* ------------------------------------------------------------------ */
+
+/** Days the platform adds when scheduling the next occurrence. */
+const RECURRENCE_STEP_DAYS: Record<"weekly" | "monthly", number> = { weekly: 7, monthly: 30 };
+
+/** Booking-flow recurrence choices — "one-time" plus the standing-order frequencies. */
+export const RECURRENCE_OPTIONS = [
+  { id: "one-time", label: "One-time", hint: "A single visit" },
+  { id: "weekly", label: "Weekly", hint: "Every week, same slot" },
+  { id: "monthly", label: "Monthly", hint: "Every month, same slot" },
+] as const;
+
+export type RecurrenceChoice = (typeof RECURRENCE_OPTIONS)[number]["id"];
+
+/** "Weekly" / "Monthly" for a booking's recurrence field. */
+export function recurrenceLabel(recurrence: Booking["recurrence"]): string {
+  return recurrence === "weekly" ? "Weekly" : "Monthly";
+}
+
+/** The date the cooperative would auto-schedule after this visit is confirmed. */
+export function nextOccurrenceAt(booking: Booking): string | null {
+  if (!booking.recurrence) return null;
+  const next = new Date(+new Date(booking.scheduledAt) + RECURRENCE_STEP_DAYS[booking.recurrence] * 86400000);
+  return Number.isNaN(next.getTime()) ? null : next.toISOString();
+}
+
+/* ------------------------------------------------------------------ */
 /* Booking lifecycle helpers                                           */
 /* ------------------------------------------------------------------ */
 

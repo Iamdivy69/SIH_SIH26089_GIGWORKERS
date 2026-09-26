@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Clock,
   Lock,
+  Repeat,
   RotateCcw,
   Search,
   ShieldCheck,
@@ -62,9 +63,12 @@ import {
   nextDays,
   PAYMENT_METHODS,
   provisionalScheduledAt,
+  RECURRENCE_OPTIONS,
+  recurrenceLabel,
   slotToISO,
   SLOT_GROUPS,
   workerCoversGroup,
+  type RecurrenceChoice,
 } from "../constants";
 import { setWorkerMatchContext, peekBookingPrefill, clearBookingPrefill, type BookingPrefill } from "../prefill";
 import { FlowStepper } from "../parts/flow-stepper";
@@ -85,6 +89,8 @@ interface FlowState {
   slotTime: string | null;
   paymentMethod: string;
   descriptionTouched: boolean;
+  /** One-time by default; weekly/monthly create a standing order. */
+  recurrence: RecurrenceChoice;
 }
 
 interface MatchCache {
@@ -105,6 +111,7 @@ const FRESH_STATE: FlowState = {
   slotTime: null,
   paymentMethod: PAYMENT_METHODS[0].id,
   descriptionTouched: false,
+  recurrence: "one-time",
 };
 
 /** Module-scoped snapshot so the flow survives "View profile" detours. */
@@ -263,6 +270,7 @@ export function BookingFlowScreen({ categoryIdParam }: { categoryIdParam?: strin
       customerNotes: state.notes.trim() || undefined,
       matchScore: selectedScore,
       charge,
+      recurrence: state.recurrence === "one-time" ? undefined : state.recurrence,
     };
     createBooking.mutate(input, {
       onSuccess: (data) => {
@@ -336,6 +344,7 @@ export function BookingFlowScreen({ categoryIdParam }: { categoryIdParam?: strin
               matchScore={selectedScore}
               slotLabel={slotLabel}
               addressId={state.addressId}
+              recurrence={state.recurrence}
             />
           </div>
         </aside>
@@ -350,6 +359,7 @@ export function BookingFlowScreen({ categoryIdParam }: { categoryIdParam?: strin
             matchScore={selectedScore}
             slotLabel={slotLabel}
             addressId={state.addressId}
+            recurrence={state.recurrence}
           />
 
           {step === 1 && (
@@ -1029,6 +1039,58 @@ function SlotStep({
             {worker.name} is not usually available in this window — they may propose a nearby slot after accepting, or you can pick another time.
           </p>
         )}
+
+        {/* Standing orders — the cooperative's stable-income promise */}
+        <div className="border-t border-border/70 pt-5">
+          <fieldset>
+            <legend className="micro-label mb-2.5">Repeat this booking</legend>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+              {RECURRENCE_OPTIONS.map((o) => {
+                const active = state.recurrence === o.id;
+                return (
+                  <label
+                    key={o.id}
+                    className={cn(
+                      "flex cursor-pointer items-start gap-2.5 rounded-lg border p-3.5 transition-colors",
+                      active ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30 hover:bg-muted/40",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="recurrence"
+                      className="sr-only"
+                      checked={active}
+                      onChange={() => patch({ recurrence: o.id })}
+                    />
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
+                        active ? "border-primary" : "border-muted-foreground/40",
+                      )}
+                    >
+                      {active && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[14px] font-medium">{o.label}</span>
+                      <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">{o.hint}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+          <p className="mt-3 flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+            <Repeat className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+            Standing orders give our members stable, predictable income — the cooperative's core promise. Same member, same rate, priority scheduling.
+          </p>
+          {state.recurrence !== "one-time" && (
+            <p className="mt-2 flex items-start gap-1.5 pl-3 text-xs leading-relaxed text-[oklch(0.45_0.10_155)]">
+              <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+              + next occurrence auto-scheduled after each completed visit — same time, same rate, cancel anytime.
+            </p>
+          )}
+        </div>
       </div>
       {footer}
     </SectionCard>
@@ -1099,6 +1161,20 @@ function ReviewStep({
           <div className="flex items-start gap-4 py-3">
             <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Visit</dt>
             <dd className="tnum min-w-0 flex-1 font-medium">{slotLabel}</dd>
+          </div>
+          <div className="flex items-start gap-4 py-3">
+            <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Frequency</dt>
+            <dd className="min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                {state.recurrence !== "one-time" && <Repeat className="h-3.5 w-3.5 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} aria-hidden />}
+                {state.recurrence === "one-time" ? "One-time visit" : `${recurrenceLabel(state.recurrence)} standing order`}
+              </span>
+              {state.recurrence !== "one-time" && (
+                <span className="mt-0.5 block text-[13px] leading-relaxed text-muted-foreground">
+                  Next occurrence auto-scheduled after each completed visit — same member, same rate. End anytime from the booking page.
+                </span>
+              )}
+            </dd>
           </div>
           <div className="flex items-start gap-4 py-3">
             <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Address</dt>
@@ -1237,6 +1313,14 @@ function ConfirmationStep({ booking, worker }: { booking: Booking; worker?: Work
             title: "You confirm, payment settles",
             detail: "Confirm completion to release payment to the member, then rate the service if you'd like.",
           },
+          ...(booking.recurrence
+            ? [
+                {
+                  title: "Your standing order continues",
+                  detail: `After you confirm each visit, the next one is scheduled automatically — ${recurrenceLabel(booking.recurrence).toLowerCase()}, same time and rate. End it anytime from the booking page.`,
+                },
+              ]
+            : []),
         ].map((s, i) => (
           <div key={s.title} className="flex items-start gap-3 rounded-lg border p-4">
             <span className="tnum flex h-6 w-6 shrink-0 items-center justify-center rounded-full border bg-muted/50 text-xs font-semibold">

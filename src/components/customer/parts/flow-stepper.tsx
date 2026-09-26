@@ -46,15 +46,15 @@ export function FlowStepper({
                   aria-label={`Step ${idx}: ${s.label}${done ? " (completed)" : current ? " (current)" : ""}`}
                   className={cn(
                     "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
-                    done && "cursor-pointer border-primary bg-primary text-primary-foreground hover:bg-primary/90",
-                    current && "border-primary text-primary",
+                    done && "cursor-pointer border-primary/55 bg-primary/10 text-primary hover:bg-primary/20",
+                    current && "border-primary bg-primary text-primary-foreground",
                     !done && !current && "border-border text-muted-foreground",
                   )}
                 >
                   {done ? <Check className="h-3.5 w-3.5" strokeWidth={2.2} /> : <span className="tnum">{idx}</span>}
                 </button>
                 {!isLast && (
-                  <span aria-hidden className={cn("mx-1.5 h-px flex-1 sm:mx-2", done ? "bg-primary/50" : "bg-border")} />
+                  <span aria-hidden className={cn("mx-1.5 h-px flex-1 sm:mx-2", done ? "bg-primary/60" : "bg-foreground/15")} />
                 )}
               </div>
               <span

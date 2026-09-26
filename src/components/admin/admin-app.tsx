@@ -12,6 +12,7 @@ import { AdminGovernanceScreen } from "./governance";
 import { AdminCategoriesScreen } from "./categories";
 import { AdminPoliciesScreen } from "./policies";
 import { AdminAuditScreen } from "./audit";
+import { NotificationCenterScreen } from "@/components/shared/notification-center";
 
 /** Cooperative admin platform — route switch. */
 export function AdminApp({ route }: { route: AppRoute }) {
@@ -38,6 +39,8 @@ export function AdminApp({ route }: { route: AppRoute }) {
       return <AdminPoliciesScreen />;
     case "admin-audit":
       return <AdminAuditScreen />;
+    case "admin-notifications":
+      return <NotificationCenterScreen role="admin" />;
     default:
       return <AdminOverviewScreen />;
   }

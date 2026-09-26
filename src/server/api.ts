@@ -19,6 +19,7 @@ import {
   customerById,
   getStore,
   notify,
+  recurringMonthlyFor,
   settleBooking,
   updatePolicy,
   voteOnProposal,
@@ -124,17 +125,26 @@ route("GET", "/session", () => {
   };
 });
 
-route("GET", "/categories", () => categories());
+route("GET", "/categories", () => {
+  const store = getStore();
+  return categories().map((c) => ({
+    ...c,
+    activeWorkers: store.workers.filter((w) => w.category === c.id && w.status === "verified").length,
+  }));
+});
 
 route("GET", "/notifications", (_req, _p, _b, user) => {
   const list = getStore().notifications.filter((n) => n.userId === user);
   return { items: list, unread: list.filter((n) => !n.read).length };
 });
 
-route("POST", "/notifications/read", (_req, _p, body) => {
+route("POST", "/notifications/read", (_req, _p, body, user) => {
   const store = getStore();
   if (body.all) {
-    store.notifications.forEach((n) => (n.read = true));
+    /* scoped to the requesting demo user — never clears other roles' notifications */
+    store.notifications.forEach((n) => {
+      if (n.userId === user) n.read = true;
+    });
   } else if (Array.isArray(body.ids)) {
     store.notifications.forEach((n) => {
       if (body.ids.includes(n.id)) n.read = true;
@@ -163,6 +173,13 @@ route("GET", "/customer/overview", (_req, _p, _b, user) => {
     .filter((b) => now - +new Date(b.createdAt) < 30 * 86400000 && b.paymentStatus !== "refunded")
     .reduce((a, b) => a + b.price.customerTotal, 0);
 
+  /* Active standing-order series of this customer (an upcoming occurrence exists). */
+  const activeSeries = new Set<string>();
+  for (const b of myBookings) {
+    if (!b.recurrence || !b.seriesId || ["cancelled", "declined", "completed"].includes(b.status)) continue;
+    activeSeries.add(b.seriesId);
+  }
+
   /* Recommended workers based on preferred categories */
   const recs = recommend(store.workers, {
     categoryId: customer.preferredCategories[0],
@@ -176,10 +193,14 @@ route("GET", "/customer/overview", (_req, _p, _b, user) => {
     upcomingBookings: upcoming,
     recentBookings: recent,
     recommendedWorkers: recs.map((r) => ({ worker: r.worker, score: r.score, reason: r.reasonSummary })),
-    categories: categories(),
+    categories: categories().map((c) => ({
+      ...c,
+      activeWorkers: store.workers.filter((w) => w.category === c.id && w.status === "verified").length,
+    })),
     spentThisMonth: monthSpend,
     completedCount: myBookings.filter((b) => b.status === "completed").length,
     savedWorkers: store.savedWorkers,
+    activeStandingOrders: activeSeries.size,
   };
 });
 
@@ -250,19 +271,51 @@ route("POST", "/matching", (_req, _p, body) => {
 });
 
 route("POST", "/bookings", (_req, _p, body) => {
+  const store = getStore();
+  /* Input hardening — clear errors instead of crashes on bad payloads. */
+  const categoryId = body?.categoryId as string | undefined;
+  if (!categoryId || !categories().some((c) => c.id === categoryId)) {
+    throw new Error("Unknown service category — pick one of the six cooperative categories");
+  }
+  const service = serviceById(categoryId as ServiceCategoryId, body?.serviceId);
+  if (!service) {
+    throw new Error(`Unknown service — ${String(body?.serviceId)} is not offered under ${categoryId}`);
+  }
+  const worker = store.workers.find((w) => w.id === body?.workerId);
+  if (!worker) {
+    throw new Error("Unknown member — this worker does not exist");
+  }
+  const charge = Number(body?.charge);
+  if (!Number.isFinite(charge) || charge <= 0) {
+    throw new Error("Invalid service charge — a positive rupee amount is required");
+  }
+  const description = String(body?.description ?? "").trim();
+  if (description.length < 15) {
+    throw new Error("Add a short description of the work (at least 15 characters)");
+  }
+  const customer = customerById(CUSTOMER_USER);
+  const addressId = String(body?.addressId ?? customer.addresses[0].id);
+  if (!customer.addresses.some((a) => a.id === addressId)) {
+    throw new Error("Unknown service address — pick one of the customer's saved addresses");
+  }
+  const recurrence = body?.recurrence as "weekly" | "monthly" | undefined;
+  if (recurrence !== undefined && recurrence !== "weekly" && recurrence !== "monthly") {
+    throw new Error("Invalid recurrence — use \"weekly\" or \"monthly\"");
+  }
   const scheduledAt = new Date(body.scheduledAt);
   if (Number.isNaN(scheduledAt.getTime())) throw new Error("Invalid slot — please pick a date and time");
   const booking = addBooking({
     customerId: CUSTOMER_USER,
-    workerId: body.workerId,
-    categoryId: body.categoryId,
-    serviceId: body.serviceId,
-    description: body.description ?? "",
-    addressId: body.addressId ?? "addr-home",
+    workerId: worker.id,
+    categoryId: categoryId as Booking["categoryId"],
+    serviceId: service.id,
+    description,
+    addressId,
     scheduledAt: scheduledAt.toISOString(),
     customerNotes: body.customerNotes,
     matchScore: body.matchScore,
-    charge: body.charge,
+    charge,
+    recurrence,
   });
   return { booking };
 });
@@ -318,13 +371,26 @@ route("POST", "/bookings/:id/cancel", (_req, params, body) => {
   booking.paymentStatus = "refunded";
   booking.cancellationReason = body?.reason ?? "Cancelled by customer";
   booking.timeline.push({ id: `ev-${booking.id}-c-${booking.timeline.length}`, at: new Date().toISOString(), label: "Cancelled by customer", detail: body?.reason ?? "", by: customerById(booking.customerId).name });
+  /* Cancelling a standing-order occurrence also ends the whole series. */
+  if (booking.recurrence) {
+    booking.seriesEnded = true;
+    booking.timeline.push({
+      id: `ev-${booking.id}-so-end-${booking.timeline.length}`,
+      at: new Date().toISOString(),
+      label: "Standing order ended by customer",
+      detail: `No further ${booking.recurrence} visits will be scheduled.`,
+      by: customerById(booking.customerId).name,
+    });
+  }
   notify(booking.workerId, {
     kind: "booking",
     title: "Booking cancelled",
-    body: `${booking.title} (${booking.reference}) was cancelled by the customer. The slot is now free.`,
+    body: booking.recurrence
+      ? `${booking.title} (${booking.reference}) was cancelled by the customer. This also ends the standing order series — no further ${booking.recurrence} visits will be scheduled.`
+      : `${booking.title} (${booking.reference}) was cancelled by the customer. The slot is now free.`,
     route: { name: "worker-schedule" },
   });
-  audit(`Booking ${booking.reference} cancelled by customer`, "Booking", customerById(booking.customerId).name, "customer", "notice");
+  audit(`Booking ${booking.reference} cancelled by customer${booking.recurrence ? " — standing order series ended" : ""}`, "Booking", customerById(booking.customerId).name, "customer", "notice");
   return { booking };
 });
 
@@ -526,6 +592,7 @@ route("GET", "/worker/earnings", (_req, _p, _b, user) => {
   const week = txns.filter((t) => now - +new Date(t.date) < 7 * 86400000);
   const month = txns.filter((t) => now - +new Date(t.date) < 30 * 86400000);
   const welfare = welfareProfileFor(workerId);
+  const recurring = recurringMonthlyFor(workerId);
 
   /* Weekly series for the last 8 weeks */
   const weeklySeries = Array.from({ length: 8 }, (_, i) => {
@@ -553,6 +620,9 @@ route("GET", "/worker/earnings", (_req, _p, _b, user) => {
       grossMonth: month.reduce((a, t) => a + t.gross, 0),
       platformFeesMonth: month.reduce((a, t) => a + t.platformFee, 0),
       welfareMonth: month.reduce((a, t) => a + t.welfareContribution, 0),
+      /* Standing orders — estimated monthly net from active series (weekly ×4.33, monthly ×1). */
+      recurringMonthly: recurring.recurringMonthly,
+      standingOrders: recurring.standingOrders,
     },
     weeklySeries,
     transactions: txns.slice(0, 30),
@@ -718,6 +788,14 @@ route("GET", "/admin/overview", () => {
 
   const welfarePool = store.transactions.reduce((a, t) => a + t.welfareContribution, 0) + 412000;
 
+  /* Active standing-order series — distinct seriesId with a non-cancelled future occurrence. */
+  const standingSeries = new Set<string>();
+  for (const b of store.bookings) {
+    if (!b.recurrence || !b.seriesId || ["cancelled", "declined", "completed"].includes(b.status)) continue;
+    if (new Date(b.scheduledAt).getTime() <= now) continue;
+    standingSeries.add(b.seriesId);
+  }
+
   return {
     kpis: {
       activeWorkers: verifiedWorkers.length,
@@ -733,6 +811,7 @@ route("GET", "/admin/overview", () => {
       onTimeRate: Math.round(verifiedWorkers.reduce((a, w) => a + w.onTimeRate, 0) / verifiedWorkers.length),
       cancellationRate: Math.round((store.bookings.filter((b) => b.status === "cancelled").length / store.bookings.length) * 100),
     },
+    standingOrders: standingSeries.size,
     bookingsTrend,
     categoryDemand,
     quality,

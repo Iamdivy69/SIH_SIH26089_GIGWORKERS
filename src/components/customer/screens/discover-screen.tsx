@@ -174,16 +174,22 @@ export function DiscoverScreen({ categoryParam }: { categoryParam?: string }) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2 pb-1">
-              <Switch id="df-verified" checked={verifiedOnly} onCheckedChange={setVerifiedOnly} />
-              <Label htmlFor="df-verified" className="cursor-pointer text-[13px]">Verified only</Label>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">Status</span>
+              <div className="mt-1 flex h-9 items-center gap-2">
+                <Switch id="df-verified" checked={verifiedOnly} onCheckedChange={setVerifiedOnly} />
+                <Label htmlFor="df-verified" className="cursor-pointer text-[13px]">Verified only</Label>
+              </div>
             </div>
-            <div className="flex items-center gap-2 pb-1">
-              <Switch id="df-today" checked={availableToday} onCheckedChange={setAvailableToday} />
-              <Label htmlFor="df-today" className="cursor-pointer text-[13px]">Available today</Label>
+            <div className="flex flex-col">
+              <span className="text-xs text-muted-foreground">Availability</span>
+              <div className="mt-1 flex h-9 items-center gap-2">
+                <Switch id="df-today" checked={availableToday} onCheckedChange={setAvailableToday} />
+                <Label htmlFor="df-today" className="cursor-pointer text-[13px]">Available today</Label>
+              </div>
             </div>
             {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="mb-0.5 gap-1 text-xs text-muted-foreground">
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1 self-end text-xs text-muted-foreground">
                 <X className="h-3.5 w-3.5" strokeWidth={1.9} /> Clear
               </Button>
             )}

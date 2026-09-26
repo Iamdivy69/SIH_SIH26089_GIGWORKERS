@@ -35,27 +35,29 @@ export function StatTile({
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="micro-label">{label}</p>
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="micro-label">{label}</p>
+          <p className={cn("tnum mt-1.5 font-semibold tracking-tight", emphasis ? "text-2xl" : "text-[22px]")}>{value}</p>
+          {(sub || delta) && (
+            <p className="mt-1 flex items-start gap-1.5 text-xs leading-snug text-muted-foreground">
+              {delta && (
+                <span
+                  className={cn(
+                    "tnum pt-px font-medium",
+                    deltaTone === "up" && "text-[oklch(0.45_0.10_155)]",
+                    deltaTone === "down" && "text-[oklch(0.50_0.17_27)]",
+                  )}
+                >
+                  {delta}
+                </span>
+              )}
+              {sub && <span className="line-clamp-2 min-w-0">{sub}</span>}
+            </p>
+          )}
+        </div>
         {accessory && <div className="shrink-0">{accessory}</div>}
       </div>
-      <p className={cn("tnum mt-1.5 font-semibold tracking-tight", emphasis ? "text-2xl" : "text-[22px]")}>{value}</p>
-      {(sub || delta) && (
-        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-          {delta && (
-            <span
-              className={cn(
-                "tnum font-medium",
-                deltaTone === "up" && "text-[oklch(0.45_0.10_155)]",
-                deltaTone === "down" && "text-[oklch(0.50_0.17_27)]",
-              )}
-            >
-              {delta}
-            </span>
-          )}
-          {sub && <span className="truncate">{sub}</span>}
-        </p>
-      )}
     </div>
   );
 }

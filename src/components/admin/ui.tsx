@@ -37,12 +37,13 @@ export function KpiStrip({ cells, className }: { cells: KpiCellData[]; className
       aria-label="Key metrics"
     >
       {cells.map((c) => (
-        <div key={c.label} className="min-w-0 bg-card px-4 py-3.5" role="listitem">
+        <div key={c.label} className="flex min-w-0 flex-col bg-card px-4 py-3.5" role="listitem">
           <p className="micro-label leading-[1.35]">{c.label}</p>
           <p className={cn("tnum mt-1.5 text-[20px] font-semibold leading-tight tracking-tight", TONE_TEXT[c.tone ?? "default"])}>
             {c.value}
           </p>
-          {c.sub && <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">{c.sub}</p>}
+          {/* reserve two sub lines so every cell in the strip shares one height */}
+          {c.sub && <p className="mt-1 line-clamp-2 min-h-[2.1rem] text-xs leading-snug text-muted-foreground">{c.sub}</p>}
         </div>
       ))}
     </div>

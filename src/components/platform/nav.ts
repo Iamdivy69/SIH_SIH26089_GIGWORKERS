@@ -1,4 +1,5 @@
 import {
+  BellRing,
   BookOpenCheck,
   BriefcaseBusiness,
   CalendarDays,
@@ -53,6 +54,7 @@ export const CUSTOMER_NAV: NavGroup[] = [
     items: [
       { label: "Bookings", route: "customer-bookings", icon: ClipboardList },
       { label: "Payments & invoices", route: "customer-payments", icon: Receipt },
+      { label: "Notifications", route: "customer-notifications", icon: BellRing, badgeKey: "notifications" },
       { label: "Support", route: "customer-support", icon: LifeBuoy },
     ],
   },
@@ -91,6 +93,7 @@ export const WORKER_NAV: NavGroup[] = [
     label: "Support & account",
     items: [
       { label: "Support", route: "worker-support", icon: LifeBuoy },
+      { label: "Notifications", route: "worker-notifications", icon: BellRing, badgeKey: "notifications" },
       { label: "Profile", route: "worker-profile", icon: UserRound },
     ],
   },
@@ -103,6 +106,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { label: "Overview", route: "admin-overview", icon: LayoutDashboard },
       { label: "Demand forecast", route: "admin-forecast", icon: TrendingUp },
       { label: "Bookings", route: "admin-bookings", icon: ClipboardList },
+      { label: "Notifications", route: "admin-notifications", icon: BellRing, badgeKey: "notifications" },
     ],
   },
   {
@@ -141,18 +145,21 @@ export const MOBILE_NAV = {
     { label: "Find", route: "customer-discover", icon: Search },
     { label: "Book", route: "customer-book", icon: CalendarPlus },
     { label: "Bookings", route: "customer-bookings", icon: ClipboardList },
+    { label: "Notifications", route: "customer-notifications", icon: BellRing },
   ],
   worker: [
     { label: "Dashboard", route: "worker-dashboard", icon: LayoutDashboard },
     { label: "Jobs", route: "worker-jobs", icon: BriefcaseBusiness },
     { label: "Schedule", route: "worker-schedule", icon: CalendarDays },
     { label: "Earnings", route: "worker-earnings", icon: Wallet },
+    { label: "Notifications", route: "worker-notifications", icon: BellRing },
   ],
   admin: [
     { label: "Overview", route: "admin-overview", icon: LayoutDashboard },
     { label: "Forecast", route: "admin-forecast", icon: TrendingUp },
     { label: "Workers", route: "admin-workers", icon: Users },
     { label: "Cases", route: "admin-disputes", icon: Scale },
+    { label: "Notifications", route: "admin-notifications", icon: BellRing },
   ],
 };
 

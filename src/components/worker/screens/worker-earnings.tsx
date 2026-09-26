@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Landmark, Wallet } from "lucide-react";
+import { Landmark, Repeat, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
@@ -10,7 +10,7 @@ import type { Column } from "@/components/shared";
 import { useAppStore } from "@/store/app-store";
 import { useWorkerEarnings } from "@/hooks/use-api";
 import { computePrice } from "@/lib/rates";
-import { dateShort, money } from "@/lib/format";
+import { dateShort, money, num } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 import { QueryGate, simulatedToast } from "../parts";
 
@@ -110,6 +110,32 @@ export function WorkerEarnings() {
                 <StatTile label="This week" value={money(s.weekEarnings)} sub="Net cash, last 7 days" />
                 <StatTile label="This month" value={money(s.monthEarnings)} sub={`Avg ${money(s.avgPerJob)} per service`} />
               </div>
+
+              {/* Standing orders — the cooperative's stable-income promise, quantified */}
+              {s.standingOrders > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-primary/25 bg-accent/40 px-4 py-3">
+                  <p className="flex min-w-0 items-center gap-2.5 text-[13px]">
+                    <Repeat className="h-4 w-4 shrink-0 text-[oklch(0.45_0.10_155)]" strokeWidth={1.9} aria-hidden />
+                    <span className="tnum font-semibold text-[oklch(0.45_0.10_155)]">Recurring income: {money(s.recurringMonthly)}/mo</span>
+                    <span className="text-muted-foreground">
+                      from {num(s.standingOrders)} standing order{s.standingOrders === 1 ? "" : "s"}
+                    </span>
+                  </p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Estimated from your active weekly (×4.33) and monthly series — stable, predictable income.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border bg-muted/30 px-4 py-3">
+                  <p className="flex min-w-0 items-center gap-2.5 text-[13px] text-muted-foreground">
+                    <Repeat className="h-4 w-4 shrink-0" strokeWidth={1.9} aria-hidden />
+                    Recurring income: <span className="tnum font-semibold">{money(0)}/mo</span> — no active standing orders yet
+                  </p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Great repeat service turns one-time customers into weekly or monthly standing orders — the cooperative's core promise.
+                  </p>
+                </div>
+              )}
 
               <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3">
                 <div className="min-w-0 space-y-6 lg:col-span-2">

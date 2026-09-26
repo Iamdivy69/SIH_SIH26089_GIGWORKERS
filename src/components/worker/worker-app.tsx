@@ -13,6 +13,7 @@ import { WorkerVerification } from "./screens/worker-verification";
 import { WorkerSkills } from "./screens/worker-skills";
 import { WorkerSupport } from "./screens/worker-support";
 import { WorkerProfile } from "./screens/worker-profile";
+import { NotificationCenterScreen } from "@/components/shared/notification-center";
 
 /**
  * Worker platform — route switch.
@@ -48,6 +49,8 @@ export function WorkerApp({ route }: { route: AppRoute }) {
       return <WorkerSupport />;
     case "worker-profile":
       return <WorkerProfile />;
+    case "worker-notifications":
+      return <NotificationCenterScreen role="worker" />;
     default:
       return <WorkerDashboard />;
   }

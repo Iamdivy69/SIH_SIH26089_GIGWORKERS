@@ -77,7 +77,7 @@
   --secondary-foreground: oklch(0.32 0.014 110);
 
   --muted: oklch(0.955 0.004 100);
-  --muted-foreground: oklch(0.505 0.014 110);
+  --muted-foreground: oklch(0.47 0.014 110);
 
   /* Interactive hover surface — quiet green tint */
   --accent: oklch(0.938 0.016 155);

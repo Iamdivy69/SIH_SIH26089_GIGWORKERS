@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Search } from "lucide-react";
+import { Download, Repeat, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,10 +76,11 @@ export function AdminBookingsScreen() {
   const exportCsv = () => {
     downloadCsv(
       `sahyog-bookings-${csvDateStamp()}`,
-      ["Reference", "Status", "Service", "Category", "Customer", "Member", "Scheduled", "Payment", "Service charge", "Welfare", "Platform fee", "GST", "Customer total", "Worker net"],
+      ["Reference", "Status", "Recurrence", "Service", "Category", "Customer", "Member", "Scheduled", "Payment", "Service charge", "Welfare", "Platform fee", "GST", "Customer total", "Worker net"],
       rows.map((r) => [
         r.booking.reference,
         statusLabel(r.booking.status),
+        r.booking.recurrence ?? "one-time",
         r.booking.title,
         r.booking.categoryId,
         r.customerName,
@@ -171,7 +172,15 @@ export function AdminBookingsScreen() {
             mobileCard={(r) => (
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="tnum text-xs font-medium">{r.booking.reference}</span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="tnum text-xs font-medium">{r.booking.reference}</span>
+                    {r.booking.recurrence && (
+                      <span className="inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]">
+                        <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
+                        Standing · {r.booking.recurrence}
+                      </span>
+                    )}
+                  </div>
                   <StatusBadge status={r.booking.status} />
                 </div>
                 <p className="text-[13px] font-medium">{r.booking.title}</p>
@@ -201,7 +210,17 @@ const bookingColumns: Column<BookingRow>[] = [
   {
     key: "ref",
     header: "Reference",
-    cell: (r) => <span className="tnum font-medium">{r.booking.reference}</span>,
+    cell: (r) => (
+      <div className="min-w-0">
+        <span className="tnum font-medium">{r.booking.reference}</span>
+        {r.booking.recurrence && (
+          <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]">
+            <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
+            Standing · {r.booking.recurrence}
+          </span>
+        )}
+      </div>
+    ),
   },
   {
     key: "created",
@@ -247,6 +266,12 @@ function BookingDetail({ row }: { row: BookingRow }) {
           <StatusBadge status={b.status} />
           <StatusBadge status={b.paymentStatus} />
           {b.matchScore !== undefined && <MatchBadge score={b.matchScore} />}
+          {b.recurrence && (
+            <span className="inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]">
+              <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
+              Standing · {b.recurrence}
+            </span>
+          )}
         </div>
         <DialogDescription>
           {b.title} · created {relativeTime(b.createdAt)}

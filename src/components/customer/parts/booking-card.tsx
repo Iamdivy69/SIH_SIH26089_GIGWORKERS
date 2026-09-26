@@ -1,11 +1,28 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar, PriceTotal, StatusBadge } from "@/components/shared";
 import { dateTimeLabel } from "@/lib/format";
 import type { Booking, Worker } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { recurrenceLabel } from "../constants";
+
+/** Amber chip marking a standing-order (recurring) booking. */
+export function StandingOrderChip({ recurrence, className }: { recurrence: Booking["recurrence"]; className?: string }) {
+  if (!recurrence) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]",
+        className,
+      )}
+    >
+      <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
+      Standing · {recurrenceLabel(recurrence).toLowerCase()}
+    </span>
+  );
+}
 
 /** Booking list card — used on Bookings tabs and the home recent strip. */
 export function BookingCard({
@@ -34,6 +51,7 @@ export function BookingCard({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="truncate text-[14px] font-semibold leading-tight">{booking.title}</h3>
             <StatusBadge status={booking.status} />
+            <StandingOrderChip recurrence={booking.recurrence} />
           </div>
           <p className="mt-1 truncate text-[13px] text-muted-foreground">
             {worker ? `${worker.name} · ${worker.tradeTitle}` : "Member"}

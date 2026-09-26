@@ -1,12 +1,12 @@
 "use client";
 
-import { CalendarClock, IndianRupee, MapPin, UserRound } from "lucide-react";
+import { CalendarClock, IndianRupee, MapPin, Repeat, UserRound } from "lucide-react";
 import { MatchBadge, PersonAvatar } from "@/components/shared";
 import { computePrice } from "@/lib/rates";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ServiceCategory, Worker } from "@/lib/types";
-import { addressById } from "../constants";
+import { addressById, recurrenceLabel, type RecurrenceChoice } from "../constants";
 
 /** Row in the sticky context panel / mobile summary strip. */
 function SummaryRow({
@@ -37,6 +37,8 @@ export interface FlowSummaryProps {
   matchScore?: number;
   slotLabel?: string;
   addressId: string;
+  /** Standing-order frequency chosen in step 4 ("one-time" = regular visit). */
+  recurrence?: RecurrenceChoice;
 }
 
 /** Desktop sticky panel — service, member, slot, address and live price. */
@@ -74,6 +76,12 @@ export function FlowSummaryPanel(props: FlowSummaryProps) {
               <span className="font-medium">{props.slotLabel}</span>
             ) : (
               <span className="text-muted-foreground">Chosen in step 4</span>
+            )}
+            {props.slotLabel && props.recurrence && props.recurrence !== "one-time" && (
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]">
+                <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
+                Standing order · {recurrenceLabel(props.recurrence).toLowerCase()}
+              </span>
             )}
           </SummaryRow>
           <SummaryRow icon={MapPin} label="Address">
@@ -131,6 +139,7 @@ export function FlowSummaryStrip({ className, ...props }: FlowSummaryProps & { c
       {(props.worker || props.slotLabel) && (
         <p className="mt-1 truncate text-xs text-muted-foreground">
           {[props.worker?.name, props.slotLabel, `${address.label} · ${address.locality}`].filter(Boolean).join(" · ")}
+          {props.recurrence && props.recurrence !== "one-time" && ` · ${recurrenceLabel(props.recurrence)} standing order`}
         </p>
       )}
     </div>
