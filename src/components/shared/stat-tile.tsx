@@ -1,0 +1,72 @@
+"use client";
+
+import { ReactNode } from "react";
+import { cn } from "@/lib/utils";
+
+/**
+ * StatTile — the house KPI tile. Typographic, disciplined:
+ * micro label → large tabular value → supporting line / delta.
+ * Optional right-aligned accessory (sparkline, badge, action).
+ */
+export function StatTile({
+  label,
+  value,
+  sub,
+  delta,
+  deltaTone = "neutral",
+  accessory,
+  className,
+  emphasis,
+}: {
+  label: string;
+  value: ReactNode;
+  sub?: ReactNode;
+  delta?: string;
+  deltaTone?: "up" | "down" | "neutral";
+  accessory?: ReactNode;
+  className?: string;
+  emphasis?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-card px-5 py-4",
+        emphasis && "border-primary/25 bg-[oklch(0.975_0.012_155)]",
+        className,
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="micro-label">{label}</p>
+        {accessory && <div className="shrink-0">{accessory}</div>}
+      </div>
+      <p className={cn("tnum mt-1.5 font-semibold tracking-tight", emphasis ? "text-2xl" : "text-[22px]")}>{value}</p>
+      {(sub || delta) && (
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+          {delta && (
+            <span
+              className={cn(
+                "tnum font-medium",
+                deltaTone === "up" && "text-[oklch(0.45_0.10_155)]",
+                deltaTone === "down" && "text-[oklch(0.50_0.17_27)]",
+              )}
+            >
+              {delta}
+            </span>
+          )}
+          {sub && <span className="truncate">{sub}</span>}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** A quiet stat for inline rows / sidebars — no card chrome. */
+export function StatInline({ label, value, sub, className }: { label: string; value: ReactNode; sub?: ReactNode; className?: string }) {
+  return (
+    <div className={cn("min-w-0", className)}>
+      <p className="micro-label">{label}</p>
+      <p className="tnum mt-0.5 text-lg font-semibold tracking-tight">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}

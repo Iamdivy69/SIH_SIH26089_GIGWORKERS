@@ -1,0 +1,1001 @@
+     1→import type {
+     2→  AppNotification,
+     3→  AuditEntry,
+     4→  Booking,
+     5→  Customer,
+     6→  EvidencePhoto,
+     7→  Payout,
+     8→  PlatformPolicy,
+     9→  Review,
+    10→  SkillCourse,
+    11→  SupportTicket,
+    12→  Transaction,
+    13→  VerificationItem,
+    14→  Worker,
+    15→  WorkerAvailabilitySlot,
+    16→} from "@/lib/types";
+    17→import { computePrice } from "@/lib/rates";
+    18→import { CHECKLISTS, serviceById } from "./catalog";
+    19→
+    20→/* ------------------------------------------------------------------ */
+    21→/* Deterministic PRNG so the demo data is stable across reloads        */
+    22→/* ------------------------------------------------------------------ */
+    23→function mulberry32(seed: number) {
+    24→  let a = seed;
+    25→  return () => {
+    26→    a |= 0;
+    27→    a = (a + 0x6d2b79f5) | 0;
+    28→    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    29→    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    30→    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    31→  };
+    32→}
+    33→const rand = mulberry32(26089);
+    34→const pick = <T,>(arr: T[]): T => arr[Math.floor(rand() * arr.length)];
+    35→const between = (min: number, max: number) => min + rand() * (max - min);
+    36→const intBetween = (min: number, max: number) => Math.round(between(min, max));
+    37→
+    38→const NOW = new Date();
+    39→const HOUR = 3600_000;
+    40→const DAY = 24 * HOUR;
+    41→const iso = (d: Date) => d.toISOString();
+    42→const daysAgo = (n: number, hour = 10, minute = 0) => {
+    43→  const d = new Date(NOW.getTime() - n * DAY);
+    44→  d.setHours(hour, minute, 0, 0);
+    45→  return d;
+    46→};
+    47→const daysAhead = (n: number, hour = 10, minute = 0) => daysAgo(-n, hour, minute);
+    48→
+    49→/* ------------------------------------------------------------------ */
+    50→/* People                                                              */
+    51→/* ------------------------------------------------------------------ */
+    52→
+    53→const availability = (days: number[], slots: string[]): WorkerAvailabilitySlot[] =>
+    54→  days.map((d) => ({ day: d, slots: [...slots] }));
+    55→
+    56→const FULL_WEEK = availability([0, 1, 2, 3, 4, 5, 6], ["08:00–12:00", "12:00–16:00", "16:00–20:00"]);
+    57→const WEEKDAY_DAYS = availability([1, 2, 3, 4, 5], ["08:00–12:00", "12:00–16:00"]);
+    58→
+    59→const verified = (dateAgo = 400): VerificationItem[] => [
+    60→  { id: "vf-id", label: "Identity verification (Aadhaar-based, simulated)", status: "verified", verifiedAt: iso(daysAgo(dateAgo + 40)), reference: "IDV-2023-01142" },
+    61→  { id: "vf-addr", label: "Address verification", status: "verified", verifiedAt: iso(daysAgo(dateAgo + 38)), reference: "ADV-2023-00871" },
+    62→  { id: "vf-skill", label: "Skill certification", status: "verified", verifiedAt: iso(daysAgo(dateAgo)), reference: "SKV-2024-00415" },
+    63→  { id: "vf-bg", label: "Background verification", status: "verified", verifiedAt: iso(daysAgo(dateAgo + 20)), reference: "BGC-2023-00256" },
+    64→];
+    65→
+    66→export const WORKERS: Worker[] = [
+    67→  {
+    68→    id: "w-priya",
+    69→    name: "Priya Sharma",
+    70→    category: "electrical",
+    71→    tradeTitle: "Certified Electrician",
+    72→    locality: "Kothrud",
+    73→    city: "Pune",
+    74→    distanceKm: 1.4,
+    75→    rating: 4.8,
+    76→    reviewCount: 187,
+    77→    completedJobs: 312,
+    78→    experienceYears: 6,
+    79→    status: "verified",
+    80→    memberSince: iso(daysAgo(1280)),
+    81→    cooperativeMemberId: "SGW-0117",
+    82→    preferredRadiusKm: 6,
+    83→    onTimeRate: 96,
+    84→    repeatCustomerRate: 71,
+    85→    responseMins: 8,
+    86→    baseRateNote: "Visit rate ₹599–1,499 · estimate confirmed after diagnosis",
+    87→    certifications: [
+    88→      { id: "cert-p1", name: "ITI — Electrician (2-year trade)", issuer: "Sahyog Skill Academy (verified credential)", issuedAt: iso(daysAgo(1500)), credentialId: "SSA-ELC-2019-0211" },
+    89→      { id: "cert-p2", name: "Residential Wiring Safety — Level 2", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(420)), validTill: iso(daysAhead(310)), credentialId: "SSA-SAF-2024-0088" },
+    90→      { id: "cert-p3", name: "Customer Communication for Field Services", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(180)), credentialId: "SSA-COM-2025-0132" },
+    91→    ],
+    92→    verification: verified(420),
+    93→    availability: availability([0, 1, 2, 3, 4, 5, 6], ["08:00–12:00", "16:00–20:00"]),
+    94→    bio: "Six years of residential electrical work across west Pune. I specialise in fault diagnosis and wiring safety, and close every job with a written safety summary so families know exactly what was checked.",
+    95→    languages: ["Marathi", "Hindi", "English"],
+    96→    skills: ["Fault diagnosis", "Wiring & rewiring", "Fan & fixture installation", "MCB & safety checks", "Inverter setup"],
+    97→  },
+    98→  {
+    99→    id: "w-rakesh",
+   100→    name: "Rakesh Patil",
+   101→    category: "plumbing",
+   102→    tradeTitle: "Licensed Plumber",
+   103→    locality: "Warje",
+   104→    city: "Pune",
+   105→    distanceKm: 2.1,
+   106→    rating: 4.7,
+   107→    reviewCount: 154,
+   108→    completedJobs: 267,
+   109→    experienceYears: 5,
+   110→    status: "verified",
+   111→    memberSince: iso(daysAgo(1100)),
+   112→    cooperativeMemberId: "SGW-0121",
+   113→    preferredRadiusKm: 7,
+   114→    onTimeRate: 94,
+   115→    repeatCustomerRate: 64,
+   116→    responseMins: 12,
+   117→    baseRateNote: "Visit rate ₹499–899 · free follow-up within 7 days",
+   118→    certifications: [
+   119→      { id: "cert-rk1", name: "ITI — Plumber (2-year trade)", issuer: "Sahyog Skill Academy (verified credential)", issuedAt: iso(daysAgo(1400)), credentialId: "SSA-PLB-2019-0176" },
+   120→      { id: "cert-rk2", name: "Water Conservation Fittings", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(300)), credentialId: "SSA-WAT-2024-0054" },
+   121→    ],
+   122→    verification: verified(300),
+   123→    availability: FULL_WEEK,
+   124→    bio: "Plumber serving Warje and Kothrud for five years. I believe in fixing the root cause, not the symptom — every repair ends with a flow test.",
+   125→    languages: ["Marathi", "Hindi"],
+   126→    skills: ["Leak repair", "Blockage clearing", "Fixture installation", "Tank systems"],
+   127→  },
+   128→  {
+   129→    id: "w-meena",
+   130→    name: "Meena Joshi",
+   131→    category: "cleaning",
+   132→    tradeTitle: "Home Cleaning Specialist",
+   133→    locality: "Kothrud",
+   134→    city: "Pune",
+   135→    distanceKm: 1.8,
+   136→    rating: 4.9,
+   137→    reviewCount: 244,
+   138→    completedJobs: 421,
+   139→    experienceYears: 4,
+   140→    status: "verified",
+   141→    memberSince: iso(daysAgo(980)),
+   142→    cooperativeMemberId: "SGW-0133",
+   143→    preferredRadiusKm: 5,
+   144→    onTimeRate: 98,
+   145→    repeatCustomerRate: 78,
+   146→    responseMins: 6,
+   147→    baseRateNote: "Deep clean ₹699–1,999 · eco-friendly supplies included",
+   148→    certifications: [
+   149→      { id: "cert-mn1", name: "Professional Home Cleaning — Level 2", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(650)), credentialId: "SSA-CLN-2023-0031" },
+   150→      { id: "cert-mn2", name: "Safe Use of Cleaning Chemicals", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(240)), credentialId: "SSA-SAF-2025-0061" },
+   151→    ],
+   152→    verification: verified(240),
+   153→    availability: availability([1, 2, 3, 4, 5, 6], ["08:00–12:00", "12:00–16:00"]),
+   154→    bio: "Four years and 400+ deep cleans. I work with a two-member team, bring our own eco-friendly supplies, and always do a final walkthrough with the resident.",
+   155→    languages: ["Marathi", "Hindi"],
+   156→    skills: ["Full-home deep clean", "Kitchen degreasing", "Upholstery shampoo", "Eco-safe products"],
+   157→  },
+   158→  {
+   159→    id: "w-arjun",
+   160→    name: "Arjun Kamble",
+   161→    category: "gardening",
+   162→    tradeTitle: "Gardening & Greens Specialist",
+   163→    locality: "Baner",
+   164→    city: "Pune",
+   165→    distanceKm: 5.2,
+   166→    rating: 4.6,
+   167→    reviewCount: 112,
+   168→    completedJobs: 188,
+   169→    experienceYears: 3,
+   170→    status: "verified",
+   171→    memberSince: iso(daysAgo(760)),
+   172→    cooperativeMemberId: "SGW-0142",
+   173→    preferredRadiusKm: 8,
+   174→    onTimeRate: 93,
+   175→    repeatCustomerRate: 69,
+   176→    responseMins: 15,
+   177→    baseRateNote: "Maintenance visits ₹499–899 · seasonal advice included",
+   178→    certifications: [
+   179→      { id: "cert-aj1", name: "Ornamental & Kitchen Gardening", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(700)), credentialId: "SSA-GRD-2023-0019" },
+   180→    ],
+   181→    verification: verified(700),
+   182→    availability: availability([2, 3, 4, 5, 6, 0], ["08:00–12:00", "16:00–20:00"]),
+   183→    bio: "Gardener for societies and homes in Baner–Balewadi. I suggest seasonal, low-water planting so gardens stay healthy through summer.",
+   184→    languages: ["Marathi", "Hindi"],
+   185→    skills: ["Lawn care", "Seasonal planting", "Hedge trimming", "Composting setup"],
+   186→  },
+   187→  {
+   188→    id: "w-sunita",
+   189→    name: "Sunita Pawar",
+   190→    category: "community-care",
+   191→    tradeTitle: "Community Care Associate",
+   192→    locality: "Aundh",
+   193→    city: "Pune",
+   194→    distanceKm: 6.4,
+   195→    rating: 4.9,
+   196→    reviewCount: 201,
+   197→    completedJobs: 356,
+   198→    experienceYears: 7,
+   199→    status: "verified",
+   200→    memberSince: iso(daysAgo(1500)),
+   201→    cooperativeMemberId: "SGW-0098",
+   202→    preferredRadiusKm: 6,
+   203→    onTimeRate: 97,
+   204→    repeatCustomerRate: 82,
+   205→    responseMins: 9,
+   206→    baseRateNote: "Companion visits ₹499–749 · family notes after every visit",
+   207→    certifications: [
+   208→      { id: "cert-sn1", name: "Elder Care Fundamentals", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(1200)), credentialId: "SSA-CAR-2022-0027" },
+   209→      { id: "cert-sn2", name: "First Aid & Emergency Response", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(400)), validTill: iso(daysAhead(330)), credentialId: "SSA-AID-2024-0093" },
+   210→    ],
+   211→    verification: verified(400),
+   212→    availability: FULL_WEEK,
+   213→    bio: "Seven years supporting elders and families in Aundh. Every visit ends with written notes for the family — small updates that matter.",
+   214→    languages: ["Marathi", "Hindi", "English"],
+   215→    skills: ["Elder companionship", "Post-hospital support", "Errand assistance", "Wellbeing checks"],
+   216→  },
+   217→  {
+   218→    id: "w-vikas",
+   219→    name: "Vikas Shinde",
+   220→    category: "electrical",
+   221→    tradeTitle: "Electrician",
+   222→    locality: "Hadapsar",
+   223→    city: "Pune",
+   224→    distanceKm: 11.2,
+   225→    rating: 4.4,
+   226→    reviewCount: 78,
+   227→    completedJobs: 142,
+   228→    experienceYears: 2,
+   229→    status: "verified",
+   230→    memberSince: iso(daysAgo(520)),
+   231→    cooperativeMemberId: "SGW-0155",
+   232→    preferredRadiusKm: 10,
+   233→    onTimeRate: 88,
+   234→    repeatCustomerRate: 52,
+   235→    responseMins: 22,
+   236→    baseRateNote: "Visit rate ₹599–1,199 · first-visit diagnosis free",
+   237→    certifications: [
+   238→      { id: "cert-vk1", name: "ITI — Electrician (2-year trade)", issuer: "Sahyog Skill Academy (verified credential)", issuedAt: iso(daysAgo(560)), credentialId: "SSA-ELC-2024-0119" },
+   239→    ],
+   240→    verification: verified(500),
+   241→    availability: WEEKDAY_DAYS,
+   242→    bio: "Two years into the trade, focusing on quick fault-finding and honest assessments for homes in east Pune.",
+   243→    languages: ["Marathi", "Hindi"],
+   244→    skills: ["Fault diagnosis", "Fixture installation", "Basic wiring"],
+   245→  },
+   246→  {
+   247→    id: "w-deepak",
+   248→    name: "Deepak Jadhav",
+   249→    category: "repairs",
+   250→    tradeTitle: "Carpenter & Repair Technician",
+   251→    locality: "Wakad",
+   252→    city: "Pune",
+   253→    distanceKm: 7.8,
+   254→    rating: 4.5,
+   255→    reviewCount: 121,
+   256→    completedJobs: 203,
+   257→    experienceYears: 4,
+   258→    status: "verified",
+   259→    memberSince: iso(daysAgo(830)),
+   260→    cooperativeMemberId: "SGW-0129",
+   261→    preferredRadiusKm: 9,
+   262→    onTimeRate: 91,
+   263→    repeatCustomerRate: 58,
+   264→    responseMins: 14,
+   265→    baseRateNote: "Repairs ₹399–749 · quote after inspection, before work",
+   266→    certifications: [
+   267→      { id: "cert-dp1", name: "Carpentry & Furniture Repair", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(900)), credentialId: "SSA-REP-2022-0064" },
+   268→    ],
+   269→    verification: verified(850),
+   270→    availability: availability([1, 2, 3, 4, 5, 6], ["12:00–16:00", "16:00–20:00"]),
+   271→    bio: "Carpenter for four years — furniture, appliance mounts, doors and locks. I quote before starting so there are no surprises.",
+   272→    languages: ["Marathi", "Hindi"],
+   273→    skills: ["Furniture repair", "Appliance installation", "Doors & locks", "Wall mounting"],
+   274→  },
+   275→  {
+   276→    id: "w-kavita",
+   277→    name: "Kavita More",
+   278→    category: "cleaning",
+   279→    tradeTitle: "Cleaning Specialist",
+   280→    locality: "Viman Nagar",
+   281→    city: "Pune",
+   282→    distanceKm: 10.5,
+   283→    rating: 4.7,
+   284→    reviewCount: 163,
+   285→    completedJobs: 289,
+   286→    experienceYears: 3,
+   287→    status: "verified",
+   288→    memberSince: iso(daysAgo(690)),
+   289→    cooperativeMemberId: "SGW-0148",
+   290→    preferredRadiusKm: 8,
+   291→    onTimeRate: 95,
+   292→    repeatCustomerRate: 66,
+   293→    responseMins: 11,
+   294→    baseRateNote: "Deep clean ₹699–1,999 · society references available",
+   295→    certifications: [
+   296→      { id: "cert-kv1", name: "Professional Home Cleaning — Level 1", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(680)), credentialId: "SSA-CLN-2023-0058" },
+   297→    ],
+   298→    verification: verified(680),
+   299→    availability: availability([1, 2, 3, 4, 5, 6], ["08:00–12:00", "12:00–16:00"]),
+   300→    bio: "Cleaning specialist covering Viman Nagar and Kalyani Nagar. Society references available on request.",
+   301→    languages: ["Marathi", "Hindi"],
+   302→    skills: ["Full-home deep clean", "Bathroom care", "Move-in cleaning"],
+   303→  },
+   304→  {
+   305→    id: "w-sandeep",
+   306→    name: "Sandeep Gaikwad",
+   307→    category: "plumbing",
+   308→    tradeTitle: "Plumbing Technician",
+   309→    locality: "Hinjewadi",
+   310→    city: "Pune",
+   311→    distanceKm: 10.2,
+   312→    rating: 4.3,
+   313→    reviewCount: 54,
+   314→    completedJobs: 96,
+   315→    experienceYears: 1,
+   316→    status: "verified",
+   317→    memberSince: iso(daysAgo(310)),
+   318→    cooperativeMemberId: "SGW-0161",
+   319→    preferredRadiusKm: 10,
+   320→    onTimeRate: 86,
+   321→    repeatCustomerRate: 47,
+   322→    responseMins: 26,
+   323→    baseRateNote: "Visit rate ₹499–899",
+   324→    certifications: [
+   325→      { id: "cert-sd1", name: "Plumbing Assistant — Level 1", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(300)), credentialId: "SSA-PLB-2024-0143" },
+   326→    ],
+   327→    verification: verified(300),
+   328→    availability: availability([2, 3, 4, 5, 6], ["08:00–12:00", "12:00–16:00"]),
+   329→    bio: "New member building a record in Hinjewadi — prompt, careful, and growing fast.",
+   330→    languages: ["Marathi", "Hindi"],
+   331→    skills: ["Leak repair", "Fixture installation"],
+   332→  },
+   333→  {
+   334→    id: "w-anita",
+   335→    name: "Anita Deshmukh",
+   336→    category: "community-care",
+   337→    tradeTitle: "Senior Care Associate",
+   338→    locality: "Kalyani Nagar",
+   339→    city: "Pune",
+   340→    distanceKm: 8.6,
+   341→    rating: 4.8,
+   342→    reviewCount: 139,
+   343→    completedJobs: 234,
+   344→    experienceYears: 5,
+   345→    status: "verified",
+   346→    memberSince: iso(daysAgo(940)),
+   347→    cooperativeMemberId: "SGW-0136",
+   348→    preferredRadiusKm: 7,
+   349→    onTimeRate: 96,
+   350→    repeatCustomerRate: 74,
+   351→    responseMins: 10,
+   352→    baseRateNote: "Care visits ₹499–749 · families get daily visit notes",
+   353→    certifications: [
+   354→      { id: "cert-an1", name: "Elder Care Fundamentals", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(1000)), credentialId: "SSA-CAR-2022-0071" },
+   355→      { id: "cert-an2", name: "Mobility Assistance Training", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(500)), credentialId: "SSA-CAR-2024-0117" },
+   356→    ],
+   357→    verification: verified(500),
+   358→    availability: availability([1, 2, 3, 4, 5], ["08:00–12:00", "12:00–16:00", "16:00–20:00"]),
+   359→    bio: "Five years of senior care experience. I work closely with families on routines, medication reminders and gentle mobility support.",
+   360→    languages: ["Marathi", "Hindi", "English"],
+   361→    skills: ["Senior care", "Mobility assistance", "Wellbeing checks"],
+   362→  },
+   363→  {
+   364→    id: "w-farhan",
+   365→    name: "Farhan Shaikh",
+   366→    category: "electrical",
+   367→    tradeTitle: "Electrician & Appliance Technician",
+   368→    locality: "Kharadi",
+   369→    city: "Pune",
+   370→    distanceKm: 12.8,
+   371→    rating: 4.6,
+   372→    reviewCount: 98,
+   373→    completedJobs: 178,
+   374→    experienceYears: 3,
+   375→    status: "verified",
+   376→    memberSince: iso(daysAgo(640)),
+   377→    cooperativeMemberId: "SGW-0151",
+   378→    preferredRadiusKm: 12,
+   379→    onTimeRate: 92,
+   380→    repeatCustomerRate: 61,
+   381→    responseMins: 13,
+   382→    baseRateNote: "Visit rate ₹599–1,499 · appliance + electrical combo",
+   383→    certifications: [
+   384→      { id: "cert-fs1", name: "ITI — Electrician (2-year trade)", issuer: "Sahyog Skill Academy (verified credential)", issuedAt: iso(daysAgo(800)), credentialId: "SSA-ELC-2023-0090" },
+   385→    ],
+   386→    verification: verified(780),
+   387→    availability: availability([1, 2, 3, 4, 5, 6], ["12:00–16:00", "16:00–20:00"]),
+   388→    bio: "Electrician covering Kharadi and Vadgaonsheri — homes and small offices, appliances welcome.",
+   389→    languages: ["Hindi", "Marathi", "English"],
+   390→    skills: ["Fault diagnosis", "Appliance wiring", "Inverter setup"],
+   391→  },
+   392→  {
+   393→    id: "w-mangesh",
+   394→    name: "Mangesh Thorat",
+   395→    category: "repairs",
+   396→    tradeTitle: "Appliance Repair Technician",
+   397→    locality: "Bibvewadi",
+   398→    city: "Pune",
+   399→    distanceKm: 5.8,
+   400→    rating: 4.4,
+   401→    reviewCount: 66,
+   402→    completedJobs: 121,
+   403→    experienceYears: 2,
+   404→    status: "verified",
+   405→    memberSince: iso(daysAgo(450)),
+   406→    cooperativeMemberId: "SGW-0158",
+   407→    preferredRadiusKm: 8,
+   408→    onTimeRate: 90,
+   409→    repeatCustomerRate: 55,
+   410→    responseMins: 18,
+   411→    baseRateNote: "Appliance repairs ₹749 · 30-day workmanship guarantee",
+   412→    certifications: [
+   413→      { id: "cert-mg1", name: "Home Appliance Repair", issuer: "Sahyog Skill Academy", issuedAt: iso(daysAgo(460)), credentialId: "SSA-REP-2024-0165" },
+   414→    ],
+   415→    verification: verified(440),
+   416→    availability: availability([1, 2, 3, 4, 5, 6], ["08:00–12:00", "16:00–20:00"]),
+   417→    bio: "Washing machines, microwaves and mixers — diagnosed on the spot, with a 30-day workmanship guarantee.",
+   418→    languages: ["Marathi", "Hindi"],
+   419→    skills: ["Appliance repair", "Washing machines", "Small appliances"],
+   420→  },
+   421→  /* --- Verification pipeline (admin workflow) --- */
+   422→  {
+   423→    id: "w-shalini",
+   424→    name: "Shalini Kadam",
+   425→    category: "cleaning",
+   426→    tradeTitle: "Cleaning Specialist — Applicant",
+   427→    locality: "Warje",
+   428→    city: "Pune",
+   429→    distanceKm: 2.4,
+   430→    rating: 0,
+   431→    reviewCount: 0,
+   432→    completedJobs: 0,
+   433→    experienceYears: 0,
+   434→    status: "pending",
+   435→    memberSince: iso(daysAgo(6)),
+   436→    cooperativeMemberId: "—",
+   437→    preferredRadiusKm: 5,
+   438→    onTimeRate: 0,
+   439→    repeatCustomerRate: 0,
+   440→    responseMins: 0,
+   441→    baseRateNote: "Awaiting onboarding",
+   442→    certifications: [],
+   443→    verification: [
+   444→      { id: "vf-sh1", label: "Identity verification (Aadhaar-based, simulated)", status: "verified", verifiedAt: iso(daysAgo(5)), reference: "IDV-2025-04318" },
+   445→      { id: "vf-sh2", label: "Address verification", status: "pending", note: "Address proof uploaded — queued for field verification" },
+   446→      { id: "vf-sh3", label: "Skill certification", status: "pending", note: "Assessment slot booked" },
+   447→      { id: "vf-sh4", label: "Background verification", status: "under_review", note: "Report expected in 3 working days" },
+   448→    ],
+   449→    availability: [],
+   450→    bio: "Applicant with 3 years informal cleaning experience in societies; joining via the Kothrud ward circle.",
+   451→    languages: ["Marathi", "Hindi"],
+   452→    skills: ["Home cleaning"],
+   453→  },
+   454→  {
+   455→    id: "w-prasad",
+   456→    name: "Prasad Kale",
+   457→    category: "gardening",
+   458→    tradeTitle: "Gardening Technician — Applicant",
+   459→    locality: "Karve Nagar",
+   460→    city: "Pune",
+   461→    distanceKm: 3.1,
+   462→    rating: 0,
+   463→    reviewCount: 0,
+   464→    completedJobs: 0,
+   465→    experienceYears: 0,
+   466→    status: "under_review",
+   467→    memberSince: iso(daysAgo(12)),
+   468→    cooperativeMemberId: "—",
+   469→    preferredRadiusKm: 6,
+   470→    onTimeRate: 0,
+   471→    repeatCustomerRate: 0,
+   472→    responseMins: 0,
+   473→    baseRateNote: "Awaiting onboarding",
+   474→    certifications: [],
+   475→    verification: [
+   476→      { id: "vf-pr1", label: "Identity verification (Aadhaar-based, simulated)", status: "verified", verifiedAt: iso(daysAgo(11)), reference: "IDV-2025-04291" },
+   477→      { id: "vf-pr2", label: "Address verification", status: "verified", verifiedAt: iso(daysAgo(10)), reference: "ADV-2025-02104" },
+   478→      { id: "vf-pr3", label: "Skill certification", status: "under_review", note: "Practical assessment scheduled for next Tuesday" },
+   479→      { id: "vf-pr4", label: "Background verification", status: "verified", verifiedAt: iso(daysAgo(8)), reference: "BGC-2025-01987" },
+   480→    ],
+   481→    availability: [],
+   482→    bio: "Nursery worker for 5 years, applying for gardening services in Karve Nagar ward.",
+   483→    languages: ["Marathi"],
+   484→    skills: ["Plant care", "Nursery work"],
+   485→  },
+   486→  {
+   487→    id: "w-ganesh",
+   488→    name: "Ganesh Salunke",
+   489→    category: "plumbing",
+   490→    tradeTitle: "Plumber — Applicant",
+   491→    locality: "Sinhagad Road",
+   492→    city: "Pune",
+   493→    distanceKm: 3.8,
+   494→    rating: 0,
+   495→    reviewCount: 0,
+   496→    completedJobs: 0,
+   497→    experienceYears: 0,
+   498→    status: "needs_action",
+   499→    memberSince: iso(daysAgo(20)),
+   500→    cooperativeMemberId: "—",
+   501→    preferredRadiusKm: 7,
+   502→    onTimeRate: 0,
+   503→    repeatCustomerRate: 0,
+   504→    responseMins: 0,
+   505→    baseRateNote: "Awaiting onboarding",
+   506→    certifications: [],
+   507→    verification: [
+   508→      { id: "vf-gn1", label: "Identity verification (Aadhaar-based, simulated)", status: "verified", verifiedAt: iso(daysAgo(19)), reference: "IDV-2025-04233" },
+   509→      { id: "vf-gn2", label: "Address verification", status: "needs_action", note: "Uploaded rent agreement expired last month — fresh proof requested on " },
+   510→      { id: "vf-gn3", label: "Skill certification", status: "verified", verifiedAt: iso(daysAgo(14)), reference: "SKV-2025-01240" },
+   511→      { id: "vf-gn4", label: "Background verification", status: "verified", verifiedAt: iso(daysAgo(9)), reference: "BGC-2025-01966" },
+   512→    ],
+   513→    availability: [],
+   514→    bio: "Assistant plumber with 2 years experience on Sinhagad Road.",
+   515→    languages: ["Marathi", "Hindi"],
+   516→    skills: ["Pipe fitting", "Leak repair"],
+   517→  },
+   518→  {
+   519→    id: "w-rekha",
+   520→    name: "Rekha Bhalerao",
+   521→    category: "community-care",
+   522→    tradeTitle: "Care Associate — Applicant",
+   523→    locality: "Hadapsar",
+   524→    city: "Pune",
+   525→    distanceKm: 10.9,
+   526→    rating: 0,
+   527→    reviewCount: 0,
+   528→    completedJobs: 0,
+   529→    experienceYears: 0,
+   530→    status: "rejected",
+   531→    memberSince: iso(daysAgo(34)),
+   532→    cooperativeMemberId: "—",
+   533→    preferredRadiusKm: 6,
+   534→    onTimeRate: 0,
+   535→    repeatCustomerRate: 0,
+   536→    responseMins: 0,
+   537→    baseRateNote: "Application closed",
+   538→    certifications: [],
+   539→    verification: [
+   540→      { id: "vf-rk1", label: "Identity verification (Aadhaar-based, simulated)", status: "verified", verifiedAt: iso(daysAgo(33)), reference: "IDV-2025-04187" },
+   541→      { id: "vf-rk2", label: "Address verification", status: "verified", verifiedAt: iso(daysAgo(32)), reference: "ADV-2025-02088" },
+   542→      { id: "vf-rk3", label: "Skill certification", status: "pending", note: "Assessment deferred" },
+   543→      { id: "vf-rk4", label: "Background verification", status: "rejected", note: "Verification report could not be cleared for care-role eligibility (details shared with applicant). Reapplication possible after 6 months." },
+   544→    ],
+   545→    availability: [],
+   546→    bio: "Applicant for community care role.",
+   547→    languages: ["Marathi"],
+   548→    skills: [],
+   549→  },
+   550→];
+   551→
+   552→export const CUSTOMERS: Customer[] = [
+   553→  {
+   554→    id: "c-ananya",
+   555→    name: "Ananya Deshpande",
+   556→    locality: "Kothrud",
+   557→    city: "Pune",
+   558→    memberSince: iso(daysAgo(420)),
+   559→    totalBookings: 5,
+   560→    lifetimeValue: 6384,
+   561→    addresses: [
+   562→      { id: "addr-home", label: "Home", line: "Flat 402, Sunshree Residency, Paud Road", locality: "Kothrud", city: "Pune", pincode: "411038" },
+   563→      { id: "addr-parents", label: "Parents' home", line: "Row House 12, Sai Colony, Karve Nagar", locality: "Karve Nagar", city: "Pune", pincode: "411052" },
+   564→    ],
+   565→    preferredCategories: ["cleaning", "electrical", "gardening"],
+   566→  },
+   567→  { id: "c-rohan", name: "Rohan Mehta", locality: "Baner", city: "Pune", memberSince: iso(daysAgo(280)), totalBookings: 7, lifetimeValue: 9420, addresses: [{ id: "addr-rohan", label: "Home", line: "B-1104, Skyline Heights, Baner Road", locality: "Baner", city: "Pune", pincode: "411045" }], preferredCategories: ["electrical", "cleaning"] },
+   568→  { id: "c-sneha", name: "Sneha Kulkarni", locality: "Aundh", city: "Pune", memberSince: iso(daysAgo(210)), totalBookings: 4, lifetimeValue: 6992, addresses: [{ id: "addr-sneha", label: "Home", line: "Flat 7, Sterling Park, Aundh Gaon", locality: "Aundh", city: "Pune", pincode: "411007" }], preferredCategories: ["cleaning", "community-care"] },
+   569→  { id: "c-aditya", name: "Aditya Joshi", locality: "Viman Nagar", city: "Pune", memberSince: iso(daysAgo(360)), totalBookings: 6, lifetimeValue: 7750, addresses: [{ id: "addr-aditya", label: "Home", line: "C-302, Konark Greens, Viman Nagar", locality: "Viman Nagar", city: "Pune", pincode: "411014" }], preferredCategories: ["repairs", "electrical"] },
+   570→  { id: "c-farida", name: "Farida Sheikh", locality: "Kharadi", city: "Pune", memberSince: iso(daysAgo(150)), totalBookings: 3, lifetimeValue: 4386, addresses: [{ id: "addr-farida", label: "Home", line: "802, Riverdale Towers, Kharadi", locality: "Kharadi", city: "Pune", pincode: "411014" }], preferredCategories: ["community-care", "cleaning"] },
+   571→  { id: "c-manish", name: "Manish Agarwal", locality: "Wakad", city: "Pune", memberSince: iso(daysAgo(95)), totalBookings: 2, lifetimeValue: 2278, addresses: [{ id: "addr-manish", label: "Home", line: "Flat 1109, Sai Symphony, Wakad", locality: "Wakad", city: "Pune", pincode: "411057" }], preferredCategories: ["cleaning"] },
+   572→  { id: "c-divya", name: "Divya Nair", locality: "Kalyani Nagar", city: "Pune", memberSince: iso(daysAgo(330)), totalBookings: 5, lifetimeValue: 5167, addresses: [{ id: "addr-divya", label: "Home", line: "Villa 4, Nagar Road Residency, Kalyani Nagar", locality: "Kalyani Nagar", city: "Pune", pincode: "411006" }], preferredCategories: ["community-care", "gardening"] },
+   573→  { id: "c-sameer", name: "Sameer Rane", locality: "Hadapsar", city: "Pune", memberSince: iso(daysAgo(60)), totalBookings: 2, lifetimeValue: 1898, addresses: [{ id: "addr-sameer", label: "Home", line: "Plot 18, Gandhi Nagar, Hadapsar", locality: "Hadapsar", city: "Pune", pincode: "411028" }], preferredCategories: ["plumbing", "electrical"] },
+   574→];
+   575→
+   576→export const DEMO_USERS = {
+   577→  customer: "c-ananya",
+   578→  worker: "w-priya",
+   579→  admin: "u-admin",
+   580→};
+   581→
+   582→/* ------------------------------------------------------------------ */
+   583→/* Bookings                                                            */
+   584→/* ------------------------------------------------------------------ */
+   585→
+   586→interface BookingSeed {
+   587→  id: string;
+   588→  customerId: string;
+   589→  workerId: string;
+   590→  categoryId: Booking["categoryId"];
+   591→  serviceId: string;
+   592→  title: string;
+   593→  description: string;
+   594→  when: Date;
+   595→  status: Booking["status"];
+   596→  rating?: number;
+   597→  reviewComment?: string;
+   598→  reviewTags?: string[];
+   599→  matchScore?: number;
+   600→  customerNotes?: string;
+   601→}
+   602→
+   603→const seeds: BookingSeed[] = [
+   604→  /* --- Ananya (demo customer) history --- */
+   605→  { id: "bk-101", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Post-Diwali deep clean, include balconies and windows.", when: daysAgo(28, 10, 0), status: "completed", rating: 5, reviewComment: "Meena's team was thorough — the kitchen looks brand new. They even did the balcony grills without being asked.", reviewTags: ["Thorough", "Punctual", "Tidy"], matchScore: 96 },
+   606→  { id: "bk-102", customerId: "c-ananya", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p1", title: "Tap, leak & pipe repair", description: "Kitchen sink tap dripping continuously; bathroom health faucet loose.", when: daysAgo(21, 16, 30), status: "completed", rating: 5, reviewComment: "Diagnosed both issues quickly, replaced the washer and cartridge. No mess left behind.", reviewTags: ["Skilled", "Tidy"], matchScore: 93 },
+   607→  { id: "bk-103", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c3", title: "Kitchen deep clean", description: "Degreasing after heavy festive cooking.", when: daysAgo(12, 11, 0), status: "completed", rating: 5, reviewComment: "Second time booking Meena. Consistent quality and very professional about moving things back.", reviewTags: ["Repeat visit", "Professional"], matchScore: 97 },
+   608→  { id: "bk-104", customerId: "c-ananya", workerId: "w-vikas", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "Study room fan making grinding noise.", when: daysAgo(8, 18, 0), status: "completed", rating: 4, reviewComment: "Fixed the bearing issue. Took a little longer than expected but explained the problem clearly.", reviewTags: ["Clear explanation"], matchScore: 88 },
+   609→  /* --- Ananya upcoming --- */
+   610→  { id: "bk-105", customerId: "c-ananya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Terrace garden upkeep — pruning, watering, check the soil in planters.", when: daysAhead(1, 10, 0), status: "confirmed", matchScore: 92, customerNotes: "Please ring the doorbell twice; the intercom is being repaired." },
+   611→  /* --- Other customers: completed history (past 35 days) --- */
+   612→  { id: "bk-201", customerId: "c-rohan", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e3", title: "Light fixture & wiring repair", description: "Bedroom lights flickering; two holders need replacement.", when: daysAgo(31, 17, 30), status: "completed", rating: 5, reviewComment: "Priya arrived with all parts, finished in an hour and gave a written safety summary. Rare professionalism.", reviewTags: ["Professional", "Punctual", "Skilled"], matchScore: 95 },
+   613→  { id: "bk-202", customerId: "c-sneha", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c4", title: "Bathroom deep clean (2 baths)", description: "Both bathrooms need descaling before guests arrive.", when: daysAgo(30, 9, 30), status: "completed", rating: 4, reviewComment: "Good work. The second bathroom could have been detailed a bit more, but overall satisfied.", reviewTags: ["Tidy"], matchScore: 91 },
+   614→  { id: "bk-203", customerId: "c-divya", workerId: "w-sunita", categoryId: "community-care", serviceId: "svc-cc1", title: "Elder care companion visit (2 hrs)", description: "Companion visit for my father — walk in the park, chess, medication reminder.", when: daysAgo(29, 16, 0), status: "completed", rating: 5, reviewComment: "Sunita aunty is wonderful with my father. The visit notes she writes are so reassuring for us.", reviewTags: ["Caring", "Reliable"], matchScore: 94 },
+   615→  { id: "bk-204", customerId: "c-aditya", workerId: "w-deepak", categoryId: "repairs", serviceId: "svc-r2", title: "Appliance repair", description: "Washing machine not spinning; makes clicking sound.", when: daysAgo(27, 12, 0), status: "completed", rating: 5, reviewComment: "Deepak found the lid switch fault in ten minutes. Fair quote, quick fix.", reviewTags: ["Skilled", "Fair pricing"], matchScore: 90 },
+   616→  { id: "bk-205", customerId: "c-farida", workerId: "w-kavita", categoryId: "cleaning", serviceId: "svc-c1", title: "Full home deep clean (1 BHK)", description: "Move-in clean before occupancy.", when: daysAgo(26, 8, 30), status: "completed", rating: 5, reviewComment: "Spotless move-in clean. Kavita brought her own supplies and was very systematic.", reviewTags: ["Thorough", "Tidy"], matchScore: 89 },
+   617→  { id: "bk-206", customerId: "c-manish", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e2", title: "Switchboard & socket repair", description: "Sparking observed in one socket; old switchboard needs replacement.", when: daysAgo(24, 10, 30), status: "completed", rating: 5, reviewComment: "Replaced the board neatly, labelled every switch. She insisted on testing each point before leaving.", reviewTags: ["Skilled", "Professional"], matchScore: 96 },
+   618→  { id: "bk-207", customerId: "c-sameer", workerId: "w-sandeep", categoryId: "plumbing", serviceId: "svc-p2", title: "Drain & blockage clearing", description: "Bathroom floor trap blocked, water pooling.", when: daysAgo(22, 9, 0), status: "completed", rating: 4, reviewComment: "Cleared the blockage. Slight delay in arrival but informed in advance.", reviewTags: ["Communicative"], matchScore: 84 },
+   619→  { id: "bk-208", customerId: "c-divya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g2", title: "Lawn mowing & edging", description: "Front lawn overgrown after the rains.", when: daysAgo(20, 8, 0), status: "completed", rating: 4, reviewComment: "Lawn looks much better now. Took one star off because some edging was uneven near the gate.", reviewTags: ["Tidy"], matchScore: 87 },
+   620→  { id: "bk-209", customerId: "c-rohan", workerId: "w-farhan", categoryId: "electrical", serviceId: "svc-e5", title: "Inverter & backup setup", description: "Install new inverter for 3 fans + 4 lights backup.", when: daysAgo(19, 17, 0), status: "completed", rating: 4, reviewComment: "Clean installation and explained load calculations before finalising. Good experience.", reviewTags: ["Clear explanation", "Skilled"], matchScore: 86 },
+   621→  { id: "bk-210", customerId: "c-sneha", workerId: "w-anita", categoryId: "community-care", serviceId: "svc-cc4", title: "Weekly wellbeing check-in", description: "Weekly check for my mother — BP log, medication reminders.", when: daysAgo(18, 11, 0), status: "completed", rating: 5, reviewComment: "Anita is punctual and warm. The weekly notes template she shares is excellent.", reviewTags: ["Caring", "Punctual"], matchScore: 93 },
+   622→  { id: "bk-211", customerId: "c-aditya", workerId: "w-mangesh", categoryId: "repairs", serviceId: "svc-r2", title: "Appliance repair", description: "Microwave tray not rotating; heating uneven.", when: daysAgo(17, 19, 0), status: "completed", rating: 4, reviewComment: "Fixed the motor and roller. Carried spare parts, which saved a second visit.", reviewTags: ["Skilled"], matchScore: 88 },
+   623→  { id: "bk-212", customerId: "c-farida", workerId: "w-sunita", categoryId: "community-care", serviceId: "svc-cc2", title: "Grocery & errand assistance", description: "Monthly grocery pickup + pharmacy for mother-in-law.", when: daysAgo(15, 10, 0), status: "completed", rating: 5, reviewComment: "So helpful — receipts for everything, and she waited at the pharmacy counter patiently.", reviewTags: ["Reliable", "Caring"], matchScore: 92 },
+   624→  { id: "bk-213", customerId: "c-rohan", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c3", title: "Kitchen deep clean", description: "Chimney and hob degreasing.", when: daysAgo(14, 14, 0), status: "completed", rating: 5, reviewComment: "Chimney looks like new. Very systematic work.", reviewTags: ["Thorough"], matchScore: 90 },
+   625→  { id: "bk-214", customerId: "c-sameer", workerId: "w-vikas", categoryId: "electrical", serviceId: "svc-e6", title: "General electrical repair", description: "Two fans and a tube light not working after voltage fluctuation.", when: daysAgo(13, 18, 30), status: "completed", rating: 4, reviewComment: "Fixed all three. Honest about what could be repaired vs replaced.", reviewTags: ["Honest", "Fair pricing"], matchScore: 85 },
+   626→  { id: "bk-215", customerId: "c-manish", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p3", title: "Fixture installation", description: "New shower set + health faucet installation.", when: daysAgo(11, 11, 30), status: "completed", rating: 5, reviewComment: "Perfect installation, and he took the old fittings away for proper disposal.", reviewTags: ["Skilled", "Tidy"], matchScore: 91 },
+   627→  { id: "bk-216", customerId: "c-divya", workerId: "w-sunita", categoryId: "community-care", serviceId: "svc-cc1", title: "Elder care companion visit (2 hrs)", description: "Father's afternoon walk and company.", when: daysAgo(9, 16, 0), status: "completed", rating: 5, reviewComment: "Father specifically asks for Sunita now. That says everything.", reviewTags: ["Caring", "Repeat visit"], matchScore: 95 },
+   628→  { id: "bk-217", customerId: "c-aditya", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e4", title: "Full wiring safety inspection", description: "35-year-old society flat — full load and earthing check before renovation.", when: daysAgo(7, 9, 30), status: "completed", rating: 5, reviewComment: "Extremely detailed inspection with a written report. She flagged two earthing issues the society electrician missed.", reviewTags: ["Professional", "Detailed report", "Skilled"], matchScore: 97 },
+   629→  { id: "bk-218", customerId: "c-sneha", workerId: "w-kavita", categoryId: "cleaning", serviceId: "svc-c5", title: "Sofa & carpet shampoo", description: "3-seater fabric sofa + one rug.", when: daysAgo(6, 15, 0), status: "completed", rating: 4, reviewComment: "Stains mostly gone, sofa dried by evening. Slight damp smell for a day.", reviewTags: ["Tidy"], matchScore: 88 },
+   630→  { id: "bk-219", customerId: "c-farida", workerId: "w-farhan", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "New fan installation in kids' room.", when: daysAgo(5, 19, 0), status: "completed", rating: 5, reviewComment: "Quick, neat and cleaned up after. Booked him again for next month.", reviewTags: ["Punctual", "Tidy", "Repeat visit"], matchScore: 90 },
+   631→  /* --- Priya's completed jobs this week (worker earnings context) --- */
+   632→  { id: "bk-301", customerId: "c-manish", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e6", title: "General electrical repair", description: "Socket sparking in kitchen; MCB tripping.", when: daysAgo(3, 10, 30), status: "completed", rating: 5, reviewComment: "Found a loose neutral wire behind the socket. Very careful work.", reviewTags: ["Skilled", "Professional"], matchScore: 94 },
+   633→  { id: "bk-302", customerId: "c-divya", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "Two fans serviced, one regulator replaced.", when: daysAgo(2, 17, 30), status: "completed", rating: 5, reviewComment: "Fast and friendly. Explained the regulator fault simply.", reviewTags: ["Punctual", "Skilled"], matchScore: 93 },
+   634→  { id: "bk-303", customerId: "c-sameer", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e3", title: "Light fixture & wiring repair", description: "Three holders + a flickering tube light.", when: daysAgo(1, 18, 0), status: "completed", rating: 5, reviewComment: "Punctual, neat, and priced as quoted.", reviewTags: ["Punctual", "Fair pricing"], matchScore: 95 },
+   635→  { id: "bk-304", customerId: "c-rohan", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e2", title: "Switchboard & socket repair", description: "Replace old switchboard in living room.", when: daysAgo(0, 10, 30), status: "completed", rating: 5, reviewComment: "Labelled every point and tested each one. Excellent as always.", reviewTags: ["Professional", "Tidy"], matchScore: 96 },
+   636→  /* --- Priya: awaiting customer confirmation (pending settlement) --- */
+   637→  { id: "bk-305", customerId: "c-aditya", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e6", title: "General electrical repair", description: "Corridor lights not turning on; suspected wiring fault.", when: daysAgo(1, 8, 0), status: "awaiting_confirmation", matchScore: 91 },
+   638→  /* --- Priya upcoming --- */
+   639→  { id: "bk-306", customerId: "c-sneha", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e4", title: "Full wiring safety inspection", description: "Pre-monsoon inspection for 2 BHK.", when: daysAhead(1, 11, 0), status: "confirmed", matchScore: 96 },
+   640→  /* --- Other workers today (admin ops numbers) --- */
+   641→  { id: "bk-401", customerId: "c-sneha", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c3", title: "Kitchen deep clean", description: "Festive season kitchen refresh.", when: daysAgo(0, new Date().getHours() >= 12 ? new Date().getHours() - 2 : 11, 0), status: "in_progress", matchScore: 92 },
+   642→  { id: "bk-402", customerId: "c-rohan", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p1", title: "Tap, leak & pipe repair", description: "Terrace tap leaking.", when: daysAgo(0, 8, 30), status: "completed", rating: 5, reviewComment: "Quick fix before office hours. Appreciated.", reviewTags: ["Punctual"], matchScore: 93 },
+   643→  { id: "bk-403", customerId: "c-sameer", workerId: "w-sandeep", categoryId: "plumbing", serviceId: "svc-p5", title: "Bathroom plumbing inspection", description: "Low pressure in shower since a week.", when: daysAgo(0, 12, 30), status: "completed", rating: 4, reviewComment: "Cleaned the aerator and fixed a kinked hose. Honest about not needing parts.", reviewTags: ["Honest"], matchScore: 82 },
+   644→  { id: "bk-404", customerId: "c-farida", workerId: "w-anita", categoryId: "community-care", serviceId: "svc-cc4", title: "Weekly wellbeing check-in", description: "Mother-in-law BP + medication check.", when: daysAgo(0, 9, 0), status: "completed", rating: 5, reviewComment: "Weekly notes on time again.", reviewTags: ["Reliable"], matchScore: 94 },
+   645→  { id: "bk-405", customerId: "c-manish", workerId: "w-kavita", categoryId: "cleaning", serviceId: "svc-c4", title: "Bathroom deep clean (2 baths)", description: "Regular monthly bathroom care.", when: daysAgo(0, 17, 0), status: "confirmed", matchScore: 87 },
+   646→  { id: "bk-406", customerId: "c-divya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Fortnightly maintenance.", when: daysAgo(0, 15, 30), status: "confirmed", matchScore: 89 },
+   647→  /* --- Offers pending acceptance (worker workflow) --- */
+   648→  { id: "bk-501", customerId: "c-rohan", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p2", title: "Drain & blockage clearing", description: "Kitchen sink draining very slowly; water pools.", when: daysAhead(1, 10, 0), status: "pending_acceptance", matchScore: 92 },
+   649→  { id: "bk-502", customerId: "c-aditya", workerId: "w-deepak", categoryId: "repairs", serviceId: "svc-r1", title: "Furniture repair & assembly", description: "Wardrobe hinge broken; study chair wobbly.", when: daysAhead(2, 18, 30), status: "pending_acceptance", matchScore: 90 },
+   650→  /* --- Upcoming confirmed --- */
+   651→  { id: "bk-503", customerId: "c-sneha", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Pre-wedding function clean at parents' place.", when: daysAhead(3, 9, 0), status: "confirmed", matchScore: 95 },
+   652→  { id: "bk-504", customerId: "c-farida", workerId: "w-sunita", categoryId: "community-care", serviceId: "svc-cc3", title: "Post-hospitalisation support visit", description: "Mother-in-law discharged Friday; need assistance through the weekend.", when: daysAhead(4, 10, 0), status: "confirmed", matchScore: 97, customerNotes: "Please call on arrival — the building gate code will be shared." },
+   653→  { id: "bk-505", customerId: "c-sameer", workerId: "w-mangesh", categoryId: "repairs", serviceId: "svc-r2", title: "Appliance repair", description: "Mixer jar coupling replacement.", when: daysAhead(5, 18, 0), status: "confirmed", matchScore: 86 },
+   654→  { id: "bk-506", customerId: "c-divya", workerId: "w-vikas", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "Install two new fans before summer.", when: daysAhead(6, 9, 30), status: "confirmed", matchScore: 85 },
+   655→  /* --- Cancelled --- */
+   656→  { id: "bk-601", customerId: "c-manish", workerId: "w-kavita", categoryId: "cleaning", serviceId: "svc-c1", title: "Full home deep clean (1 BHK)", description: "Scheduled clean; customer travelling.", when: daysAgo(4, 9, 0), status: "cancelled", matchScore: 88 },
+   657→];
+   658→
+   659→function buildBooking(s: BookingSeed): { booking: Booking; review?: Review; transaction?: Transaction } {
+   660→  const service = CATALOG_LOOKUP(s.categoryId, s.serviceId);
+   661→  const charge = service.basePrice + intBetween(-2, 2) * 25;
+   662→  const price = computePrice(charge);
+   663→  const customer = CUSTOMERS.find((c) => c.id === s.customerId)!;
+   664→  const worker = WORKERS.find((w) => w.id === s.workerId)!;
+   665→  const createdAt = new Date(s.when.getTime() - intBetween(20, 72) * HOUR);
+   666→  const reference = `SG-${s.id.slice(-3).toUpperCase()}${(parseInt(s.id.slice(-1), 10) + 4).toString()}`;
+   667→
+   668→  const baseBooking: Booking = {
+   669→    id: s.id,
+   670→    reference,
+   671→    customerId: s.customerId,
+   672→    workerId: s.workerId,
+   673→    categoryId: s.categoryId,
+   674→    serviceId: s.serviceId,
+   675→    title: s.title,
+   676→    description: s.description,
+   677→    addressId: customer.addresses[0].id,
+   678→    scheduledAt: iso(s.when),
+   679→    durationMin: service.durationMin,
+   680→    status: s.status,
+   681→    paymentStatus: "authorized",
+   682→    price,
+   683→    matchScore: s.matchScore,
+   684→    createdAt: iso(createdAt),
+   685→    checklist: CHECKLISTS[s.categoryId].map((label, i) => ({
+   686→      id: `chk-${s.id}-${i}`,
+   687→      label,
+   688→      done: ["completed", "awaiting_confirmation"].includes(s.status),
+   689→    })),
+   690→    evidence: [],
+   691→    timeline: [{ id: `ev-${s.id}-0`, at: iso(createdAt), label: "Request created", detail: `${customer.name} · ${s.title}`, by: customer.name }],
+   692→    customerNotes: s.customerNotes,
+   693→  };
+   694→
+   695→  const review: Review | undefined = s.rating
+   696→    ? {
+   697→        id: `rev-${s.id}`,
+   698→        bookingId: s.id,
+   699→        customerId: s.customerId,
+   700→        customerName: customer.name,
+   701→        workerId: s.workerId,
+   702→        rating: s.rating,
+   703→        comment: s.reviewComment ?? "",
+   704→        tags: s.reviewTags ?? [],
+   705→        createdAt: iso(new Date(s.when.getTime() + 3 * HOUR)),
+   706→      }
+   707→    : undefined;
+   708→
+   709→  const transaction: Transaction | undefined =
+   710→    s.status === "completed"
+   711→      ? {
+   712→          id: `txn-${s.id}`,
+   713→          bookingId: s.id,
+   714→          bookingRef: reference,
+   715→          workerId: s.workerId,
+   716→          date: iso(new Date(s.when.getTime() + 4 * HOUR)),
+   717→          serviceTitle: s.title,
+   718→          gross: price.workerGross,
+   719→          platformFee: price.platformFee,
+   720→          welfareContribution: price.welfareContribution,
+   721→          tds: price.workerTds,
+   722→          net: price.workerNetPayout,
+   723→          status: rand() > 0.25 ? "credited" : "paid_out",
+   724→        }
+   725→      : undefined;
+   726→
+   727→  /* Timeline per status */
+   728→  if (["completed", "awaiting_confirmation"].includes(s.status)) {
+   729→    baseBooking.paymentStatus = s.status === "completed" ? "settled" : "authorized";
+   730→    baseBooking.timeline.push(
+   731→      { id: `ev-${s.id}-1`, at: iso(new Date(createdAt.getTime() + 20 * 60000)), label: "Worker accepted", detail: `${worker.name} accepted the job`, by: worker.name },
+   732→      { id: `ev-${s.id}-2`, at: iso(new Date(createdAt.getTime() + 25 * 60000)), label: "Payment authorised", detail: "Held securely until service completion", by: "Platform" },
+   733→      { id: `ev-${s.id}-3`, at: iso(new Date(s.when.getTime() - 45 * 60000)), label: "On the way", by: worker.name },
+   734→      { id: `ev-${s.id}-4`, at: iso(s.when), label: "Arrived & started", by: worker.name },
+   735→      { id: `ev-${s.id}-5`, at: iso(new Date(s.when.getTime() + service.durationMin * 60000)), label: "Service completed", detail: "Checklist and evidence recorded", by: worker.name },
+   736→    );
+   737→    if (s.status === "completed") {
+   738→      baseBooking.timeline.push({ id: `ev-${s.id}-6`, at: iso(new Date(s.when.getTime() + (service.durationMin + 30) * 60000)), label: "Payment settled to worker", detail: "Breakdown available in worker earnings", by: "Platform" });
+   739→      if (review) baseBooking.timeline.push({ id: `ev-${s.id}-7`, at: review.createdAt, label: "Rated by customer", detail: `${review.rating} / 5`, by: customer.name });
+   740→    }
+   741→    baseBooking.evidence = [
+   742→      { phase: "before", capturedAt: iso(s.when), label: "Fault photographed before repair" },
+   743→      { phase: "after", capturedAt: iso(new Date(s.when.getTime() + service.durationMin * 60000)), label: "Completed work after repair" },
+   744→    ];
+   745→  } else if (s.status === "cancelled") {
+   746→    baseBooking.paymentStatus = "refunded";
+   747→    baseBooking.cancellationReason = "Customer travelling — cancelled 2 days before the slot (free cancellation window)";
+   748→    baseBooking.timeline.push(
+   749→      { id: `ev-${s.id}-1`, at: iso(new Date(createdAt.getTime() + 2 * HOUR)), label: "Cancelled by customer", detail: "Full refund issued to source account", by: customer.name },
+   750→    );
+   751→  } else if (s.status === "confirmed") {
+   752→    baseBooking.timeline.push(
+   753→      { id: `ev-${s.id}-1`, at: iso(new Date(createdAt.getTime() + 18 * 60000)), label: "Worker accepted", by: worker.name },
+   754→      { id: `ev-${s.id}-2`, at: iso(new Date(createdAt.getTime() + 22 * 60000)), label: "Payment authorised", detail: "Held securely until service completion", by: "Platform" },
+   755→    );
+   756→  } else if (s.status === "pending_acceptance") {
+   757→    /* offer only */
+   758→  } else if (s.status === "in_progress") {
+   759→    baseBooking.timeline.push(
+   760→      { id: `ev-${s.id}-1`, at: iso(new Date(createdAt.getTime() + 15 * 60000)), label: "Worker accepted", by: worker.name },
+   761→      { id: `ev-${s.id}-2`, at: iso(new Date(createdAt.getTime() + 19 * 60000)), label: "Payment authorised", by: "Platform" },
+   762→      { id: `ev-${s.id}-3`, at: iso(new Date(s.when.getTime() - 40 * 60000)), label: "On the way", by: worker.name },
+   763→      { id: `ev-${s.id}-4`, at: iso(s.when), label: "Arrived & started", by: worker.name },
+   764→    );
+   765→    baseBooking.checklist = baseBooking.checklist.map((c, i) => ({ ...c, done: i < 2 }));
+   766→    baseBooking.evidence = [{ phase: "before", capturedAt: iso(s.when), label: "Kitchen — before cleaning" }];
+   767→  }
+   768→
+   769→  return { booking: baseBooking, review, transaction };
+   770→}
+   771→
+   772→function CATALOG_LOOKUP(categoryId: Booking["categoryId"], serviceId: string) {
+   773→  const svc = serviceById(categoryId, serviceId);
+   774→  if (!svc) throw new Error(`Unknown service ${serviceId} in ${categoryId}`);
+   775→  return svc;
+   776→}
+   777→
+   778→const built = seeds.map(buildBooking);
+   779→export const SEED_BOOKINGS: Booking[] = built.map((b) => b.booking);
+   780→export const SEED_REVIEWS: Review[] = built.map((b) => b.review).filter((r): r is Review => Boolean(r));
+   781→export const SEED_TRANSACTIONS: Transaction[] = built.map((b) => b.transaction).filter((t): t is Transaction => Boolean(t));
+   782→
+   783→/* ------------------------------------------------------------------ */
+   784→/* Payouts (weekly batches, worker side)                               */
+   785→/* ------------------------------------------------------------------ */
+   786→export const SEED_PAYOUTS: Payout[] = [
+   787→  { id: "pay-1", workerId: "w-priya", period: "Week of 8–14 Sep", date: iso(daysAgo(13, 20, 0)), transactions: 5, amount: 5402, method: "Bank ••4417 (HDFC)", status: "processed", reference: "POT-2609-081" },
+   788→  { id: "pay-2", workerId: "w-priya", period: "Week of 15–21 Sep", date: iso(daysAgo(6, 20, 0)), transactions: 6, amount: 6314, method: "Bank ••4417 (HDFC)", status: "processed", reference: "POT-2609-142" },
+   789→  { id: "pay-3", workerId: "w-priya", period: "Week of 22–28 Sep", date: iso(daysAhead(1, 20, 0)), transactions: 5, amount: 5987, method: "Bank ••4417 (HDFC)", status: "processing", reference: "POT-2609-203" },
+   790→];
+   791→
+   792→/* ------------------------------------------------------------------ */
+   793→/* Skills                                                              */
+   794→/* ------------------------------------------------------------------ */
+   795→export const SEED_COURSES: SkillCourse[] = [
+   796→  { id: "crs-1", title: "Advanced Residential Wiring Safety", provider: "Sahyog Skill Academy", category: "electrical", status: "completed", progress: 100, completedAt: iso(daysAgo(420)), hours: 12, certified: true, creditValue: 12 },
+   797→  { id: "crs-2", title: "Customer Communication for Field Services", provider: "Sahyog Skill Academy", category: "electrical", status: "completed", progress: 100, completedAt: iso(daysAgo(180)), hours: 8, certified: true, creditValue: 8 },
+   798→  { id: "crs-3", title: "Solar Rooftop Installation Basics", provider: "Sahyog Skill Academy", category: "electrical", status: "in_progress", progress: 40, hours: 16, certified: false, creditValue: 16 },
+   799→  { id: "crs-4", title: "Appliance Repair Fundamentals", provider: "Sahyog Skill Academy", category: "repairs", status: "available", progress: 0, hours: 20, certified: false, creditValue: 20 },
+   800→  { id: "crs-5", title: "EV Home Charger Installation Readiness", provider: "Sahyog Skill Academy", category: "electrical", status: "available", progress: 0, hours: 24, certified: false, creditValue: 24 },
+   801→];
+   802→
+   803→/* ------------------------------------------------------------------ */
+   804→/* Support tickets                                                     */
+   805→/* ------------------------------------------------------------------ */
+   806→export const SEED_TICKETS: SupportTicket[] = [
+   807→  {
+   808→    id: "tk-001",
+   809→    reference: "SUP-5841",
+   810→    raisedByRole: "customer",
+   811→    raisedByName: "Sneha Kulkarni",
+   812→    type: "dispute",
+   813→    category: "Service quality",
+   814→    subject: "Deep clean incomplete — balconies skipped",
+   815→    description: "Booked a 2 BHK deep clean (SG-105) on Tuesday. The team finished early and did not clean the balcony areas or the windows as promised in the service description.",
+   816→    relatedBookingRef: "SG-1054",
+   817→    status: "open",
+   818→    priority: "high",
+   819→    createdAt: iso(daysAgo(1, 14, 20)),
+   820→    updatedAt: iso(daysAgo(0, 9, 15)),
+   821→    assignedTo: "Meera Kulkarni (Member Support)",
+   822→    messages: [
+   823→      { id: "msg-1", at: iso(daysAgo(1, 14, 20)), author: "Sneha Kulkarni", body: "Reporting the issue with photos of the skipped areas. The rest of the clean was good, but the description clearly includes balconies." },
+   824→      { id: "msg-2", at: iso(daysAgo(1, 16, 5)), author: "Meera Kulkarni (Member Support)", body: "Thank you, Sneha. We've informed the member and scheduled a callback. We will arrange a complimentary balcony + window cleanup or a partial refund — your choice." },
+   825→    ],
+   826→  },
+   827→  {
+   828→    id: "tk-002",
+   829→    reference: "SUP-5837",
+   830→    raisedByRole: "customer",
+   831→    raisedByName: "Aditya Joshi",
+   832→    type: "complaint",
+   833→    category: "Punctuality",
+   834→    subject: "Technician arrived 40 minutes late",
+   835→    description: "Slot was 6:00 PM, technician arrived at 6:40 PM. He called in advance, but I had to reschedule my evening.",
+   836→    relatedBookingRef: "SG-0147",
+   837→    status: "in_review",
+   838→    priority: "medium",
+   839→    createdAt: iso(daysAgo(3, 19, 45)),
+   840→    updatedAt: iso(daysAgo(2, 11, 10)),
+   841→    assignedTo: "Meera Kulkarni (Member Support)",
+   842→    messages: [
+   843→      { id: "msg-1", at: iso(daysAgo(3, 19, 45)), author: "Aditya Joshi", body: "Not a complaint about the work itself — just the delay. Should the on-time guarantee apply here?" },
+   844→      { id: "msg-2", at: iso(daysAgo(2, 11, 10)), author: "Meera Kulkarni (Member Support)", body: "It does, Aditya. The on-time record for this visit will be marked in the member's quality log, and we're reviewing the traffic buffer for evening slots on that route. A 10% goodwill credit has been applied to your next booking." },
+   845→    ],
+   846→  },
+   847→  {
+   848→    id: "tk-003",
+   849→    reference: "SUP-5829",
+   850→    raisedByRole: "worker",
+   851→    raisedByName: "Rakesh Patil",
+   852→    type: "payout_issue",
+   853→    category: "Payments",
+   854→    subject: "Weekly payout short by ₹312",
+   855→    description: "The payout for week of 8–14 Sep (ref POT-2609-081) lists 5 jobs but only 4 amounts appear in the statement total. Difference is ₹312.",
+   856→    status: "awaiting_response",
+   857→    priority: "high",
+   858→    createdAt: iso(daysAgo(4, 21, 5)),
+   859→    updatedAt: iso(daysAgo(3, 10, 30)),
+   860→    assignedTo: "Finance Desk",
+   861→    messages: [
+   862→      { id: "msg-1", at: iso(daysAgo(4, 21, 5)), author: "Rakesh Patil", body: "Adding the statement screenshot. The 9 Sep job (tap repair, SG-0447) seems missing from the batch." },
+   863→      { id: "msg-2", at: iso(daysAgo(3, 10, 30)), author: "Finance Desk", body: "Thanks Rakesh — we can see the transaction was included in the count but excluded from the batch due to a settlement hold. We've released the hold and the difference will reach your account with the next payout cycle. Apologies for the missing line item." },
+   864→    ],
+   865→  },
+   866→  {
+   867→    id: "tk-004",
+   868→    reference: "SUP-5815",
+   869→    raisedByRole: "worker",
+   870→    raisedByName: "Vikas Shinde",
+   871→    type: "grievance",
+   872→    category: "Scheduling",
+   873→    subject: "Customer rescheduled twice on the day of visit",
+   874→    description: "Same booking moved twice on the day (2 PM → 5 PM → next day). I had blocked the whole evening. Requesting the reschedule policy to be applied.",
+   875→    status: "resolved",
+   876→    priority: "medium",
+   877→    createdAt: iso(daysAgo(9, 18, 0)),
+   878→    updatedAt: iso(daysAgo(7, 12, 45)),
+   879→    assignedTo: "Meera Kulkarni (Member Support)",
+   880→    messages: [
+   881→      { id: "msg-1", at: iso(daysAgo(9, 18, 0)), author: "Vikas Shinde", body: "Two same-day reschedules for one visit is genuinely difficult — I lose the evening's other opportunities too." },
+   882→      { id: "msg-2", at: iso(daysAgo(7, 12, 45)), author: "Meera Kulkarni (Member Support)", body: "Agreed, and we're sorry. The late-reschedule compensation (25% of service charge) has been credited to you. We've also shared a gentle policy reminder with the customer. Members' time is protected on this platform." },
+   883→    ],
+   884→    resolution: "Late-reschedule compensation credited to the member; customer counselled on the reschedule policy.",
+   885→  },
+   886→  {
+   887→    id: "tk-005",
+   888→    reference: "SUP-5802",
+   889→    raisedByRole: "customer",
+   890→    raisedByName: "Farida Sheikh",
+   891→    type: "question",
+   892→    category: "Billing",
+   893→    subject: "How is the welfare contribution on my bill used?",
+   894→    description: "I see a welfare contribution line on every invoice. Where exactly does this money go?",
+   895→    status: "resolved",
+   896→    priority: "low",
+   897→    createdAt: iso(daysAgo(12, 13, 20)),
+   898→    updatedAt: iso(daysAgo(12, 15, 5)),
+   899→    assignedTo: "Meera Kulkarni (Member Support)",
+   900→    messages: [
+   901→      { id: "msg-1", at: iso(daysAgo(12, 13, 20)), author: "Farida Sheikh", body: "It's a small amount per booking, but I'd like to know how it is used." },
+   902→      { id: "msg-2", at: iso(daysAgo(12, 15, 5)), author: "Meera Kulkarni (Member Support)", body: "Great question. 100% of it is credited to the welfare fund of the worker who served you — it contributes to their health cover, accident cover and pension pot. Every worker can see their fund statement in their own app, and the cooperative publishes a quarterly welfare fund summary." },
+   903→    ],
+   904→    resolution: "Explained the welfare fund flow; customer satisfaction confirmed.",
+   905→  },
+   906→  {
+   907→    id: "tk-006",
+   908→    reference: "SUP-5844",
+   909→    raisedByRole: "worker",
+   910→    raisedByName: "Shalini Kadam",
+   911→    type: "verification_issue",
+   912→    category: "Onboarding",
+   913→    subject: "ID proof upload rejected — file unclear",
+   914→    description: "My address proof was rejected in onboarding. I re-uploaded a clearer scan today.",
+   915→    status: "open",
+   916→    priority: "medium",
+   917→    createdAt: iso(daysAgo(0, 8, 40)),
+   918→    updatedAt: iso(daysAgo(0, 8, 40)),
+   919→    messages: [{ id: "msg-1", at: iso(daysAgo(0, 8, 40)), author: "Shalini Kadam", body: "Uploaded the rental agreement again with better lighting. Please re-check." }],
+   920→  },
+   921→  {
+   922→    id: "tk-007",
+   923→    reference: "SUP-5846",
+   924→    raisedByRole: "customer",
+   925→    raisedByName: "Manish Agarwal",
+   926→    type: "dispute",
+   927→    category: "Billing",
+   928→    subject: "Charged for 2 BHK deep clean, 1 BHK delivered",
+   929→    description: "My flat is a 1 BHK. I was billed for the 2 BHK service (SG-1296). Requesting correction and refund of the difference.",
+   930→    relatedBookingRef: "SG-1296",
+   931→    status: "escalated",
+   932→    priority: "urgent",
+   933→    createdAt: iso(daysAgo(0, 10, 10)),
+   934→    updatedAt: iso(daysAgo(0, 11, 25)),
+   935→    assignedTo: "Kiran Rao (Operations)",
+   936→    messages: [
+   937→      { id: "msg-1", at: iso(daysAgo(0, 10, 10)), author: "Manish Agarwal", body: "Attaching my agreement page showing 1 BHK. The service itself was fine — the billing category is wrong." },
+   938→      { id: "msg-2", at: iso(daysAgo(0, 11, 25)), author: "Kiran Rao (Operations)", body: "Escalated to me personally. We are checking whether the category was selected at booking or changed later. Correction or refund will be processed within 24 hours either way." },
+   939→    ],
+   940→  },
+   941→];
+   942→
+   943→/* ------------------------------------------------------------------ */
+   944→/* Notifications                                                       */
+   945→/* ------------------------------------------------------------------ */
+   946→export const SEED_NOTIFICATIONS: AppNotification[] = [
+   947→  /* Priya (worker) */
+   948→  { id: "nt-1", userId: "w-priya", kind: "job", title: "New job recommendation", body: "Switchboard replacement, 2.3 km away — tomorrow 11:00 AM. Estimated earnings ₹950.", createdAt: iso(daysAgo(0, 9, 20)), read: false, route: { name: "worker-jobs" } },
+   949→  { id: "nt-2", userId: "w-priya", kind: "payment", title: "Payment settled", body: "₹792 for switchboard & socket repair (SG-2094) has been added to your available earnings.", createdAt: iso(daysAgo(0, 12, 10)), read: false, route: { name: "worker-earnings" } },
+   950→  { id: "nt-3", userId: "w-priya", kind: "governance", title: "Cooperative vote open", body: "Proposal PRO-2026-014 — training fund allocation for high-demand skills. Closes in 9 days.", createdAt: iso(daysAgo(1, 17, 0)), read: false, route: { name: "worker-governance" } },
+   951→  { id: "nt-4", userId: "w-priya", kind: "verification", title: "Certification renewed", body: "Your Residential Wiring Safety — Level 2 credential was re-validated for 12 months.", createdAt: iso(daysAgo(2, 10, 30)), read: true, route: { name: "worker-verification" } },
+   952→  { id: "nt-5", userId: "w-priya", kind: "support", title: "Welfare claim update", body: "Health check-up claim (WCL-1044) moved to under review. Expected decision in 2–3 working days.", createdAt: iso(daysAgo(2, 15, 40)), read: true, route: { name: "worker-welfare" } },
+   953→  { id: "nt-6", userId: "w-priya", kind: "payment", title: "Weekly payout processing", body: "₹5,987 for the week of 22–28 Sep will reach Bank ••4417 tomorrow evening.", createdAt: iso(daysAgo(0, 8, 0)), read: true, route: { name: "worker-earnings" } },
+   954→  /* Ananya (customer) */
+   955→  { id: "nt-10", userId: "c-ananya", kind: "booking", title: "Booking confirmed", body: "Garden maintenance with Arjun Kamble is confirmed for tomorrow, 10:00 AM.", createdAt: iso(daysAgo(0, 9, 5)), read: false, route: { name: "customer-booking", params: { bookingId: "bk-105" } } },
+   956→  { id: "nt-11", userId: "c-ananya", kind: "booking", title: "Service completed", body: "Kitchen deep clean by Meena Joshi is complete. Payment will be settled after your confirmation.", createdAt: iso(daysAgo(12, 14, 30)), read: true, route: { name: "customer-booking", params: { bookingId: "bk-103" } } },
+   957→  { id: "nt-12", userId: "c-ananya", kind: "booking", title: "Rate your service", body: "How was the fan repair with Vikas Shinde? Your rating keeps quality transparent for everyone.", createdAt: iso(daysAgo(7, 20, 15)), read: true, route: { name: "customer-booking", params: { bookingId: "bk-104" } } },
+   958→  { id: "nt-13", userId: "c-ananya", kind: "payment", title: "Invoice ready", body: "Invoice INV-0912 for kitchen deep clean (₹1,047) is available in Payments & Invoices.", createdAt: iso(daysAgo(12, 14, 35)), read: true, route: { name: "customer-payments" } },
+   959→  /* Admin */
+   960→  { id: "nt-20", userId: "u-admin", kind: "support", title: "Dispute escalated", body: "SUP-5846 — 2 BHK vs 1 BHK billing dispute escalated by Kiran Rao. Needs assignment today.", createdAt: iso(daysAgo(0, 11, 30)), read: false, route: { name: "admin-disputes" } },
+   961→  { id: "nt-21", userId: "u-admin", kind: "verification", title: "Verification needs action", body: "Ganesh Salunke's address proof has expired. Fresh proof was requested 4 days ago.", createdAt: iso(daysAgo(1, 9, 0)), read: false, route: { name: "admin-verifications" } },
+   962→  { id: "nt-22", userId: "u-admin", kind: "system", title: "Capacity gap forecast", body: "Forecast predicts a 12-worker gap for electrical services on Saturday evening (4–8 PM).", createdAt: iso(daysAgo(0, 7, 30)), read: false, route: { name: "admin-forecast" } },
+   963→  { id: "nt-23", userId: "u-admin", kind: "payment", title: "Payout batch processed", body: "84 members · ₹4.2L processed for the week of 15–21 Sep.", createdAt: iso(daysAgo(6, 20, 5)), read: true, route: { name: "admin-finance" } },
+   964→];
+   965→
+   966→/* ------------------------------------------------------------------ */
+   967→/* Audit log                                                           */
+   968→/* ------------------------------------------------------------------ */
+   969→export const SEED_AUDIT: AuditEntry[] = [
+   970→  { id: "au-1", at: iso(daysAgo(0, 11, 25)), actor: "Kiran Rao", actorRole: "admin", action: "Escalated dispute SUP-5846", entity: "Support ticket", severity: "warning" },
+   971→  { id: "au-2", at: iso(daysAgo(0, 10, 40)), actor: "Meera Kulkarni", actorRole: "admin", action: "Replied to ticket SUP-5841", entity: "Support ticket", severity: "info" },
+   972→  { id: "au-3", at: iso(daysAgo(0, 9, 15)), actor: "System (scheduler)", actorRole: "admin", action: "Generated 7-day demand forecast", entity: "Forecast", severity: "info" },
+   973→  { id: "au-4", at: iso(daysAgo(0, 8, 40)), actor: "Shalini Kadam", actorRole: "worker", action: "Re-uploaded address proof", entity: "Verification record", severity: "notice" },
+   974→  { id: "au-5", at: iso(daysAgo(1, 18, 55)), actor: "Priya Sharma", actorRole: "worker", action: "Completed service SG-2094", entity: "Booking", severity: "info" },
+   975→  { id: "au-6", at: iso(daysAgo(1, 16, 10)), actor: "Finance Desk", actorRole: "admin", action: "Released settlement hold on POT-2609-081", entity: "Payout", severity: "warning" },
+   976→  { id: "au-7", at: iso(daysAgo(2, 12, 30)), actor: "Kiran Rao", actorRole: "admin", action: "Updated category rate — Electrical: wiring inspection ₹1,099 → ₹1,199", entity: "Service category", severity: "notice" },
+   977→  { id: "au-8", at: iso(daysAgo(3, 11, 5)), actor: "Kiran Rao", actorRole: "admin", action: "Approved verification — Sandeep Gaikwad (plumbing)", entity: "Verification record", severity: "info" },
+   978→  { id: "au-9", at: iso(daysAgo(4, 15, 20)), actor: "Executive Committee", actorRole: "admin", action: "Published proposal PRO-2026-014 for member voting", entity: "Governance proposal", severity: "info" },
+   979→  { id: "au-10", at: iso(daysAgo(5, 10, 10)), actor: "Kiran Rao", actorRole: "admin", action: "Rejected verification — Rekha Bhalerao (care role eligibility)", entity: "Verification record", severity: "warning" },
+   980→  { id: "au-11", at: iso(daysAgo(6, 20, 5)), actor: "Finance Desk", actorRole: "admin", action: "Processed payout batch POT-2609-142 (84 members)", entity: "Payout", severity: "info" },
+   981→  { id: "au-12", at: iso(daysAgo(8, 9, 45)), actor: "Kiran Rao", actorRole: "admin", action: "Updated policy — dispute window 3 → 3 days (no change, reviewed)", entity: "Platform policy", severity: "info" },
+   982→  { id: "au-13", at: iso(daysAgo(10, 14, 30)), actor: "Meera Kulkarni", actorRole: "admin", action: "Resolved ticket SUP-5802 (welfare contribution query)", entity: "Support ticket", severity: "info" },
+   983→  { id: "au-14", at: iso(daysAgo(12, 11, 15)), actor: "Executive Committee", actorRole: "admin", action: "Closed proposal PRO-2026-009 — passed (131 approve / 33 reject / 8 abstain)", entity: "Governance proposal", severity: "notice" },
+   984→];
+   985→
+   986→/* ------------------------------------------------------------------ */
+   987→/* Policy                                                              */
+   988→/* ------------------------------------------------------------------ */
+   989→export const SEED_POLICY: PlatformPolicy = {
+   990→  commissionPct: 6,
+   991→  welfarePct: 3,
+   992→  gstPct: 18,
+   993→  tdsPct: 1,
+   994→  surgePolicy: "No customer surge pricing. High-demand windows are managed by routing priority and member availability incentives.",
+   995→  cancellationPolicy: "Free cancellation until 2 hours before the slot. Later cancellations charge 25% of the service charge, credited to the member for their blocked time.",
+   996→  disputeWindowDays: 3,
+   997→  minWagePerHour: 120,
+   998→  updatedBy: "Kiran Rao",
+   999→  updatedAt: iso(daysAgo(8, 12, 0)),
+  1000→};
+  1001→

@@ -1,0 +1,959 @@
+     1→import { NextRequest } from "next/server";
+     2→import type {
+     3→  Booking,
+     4→  BookingStatus,
+     5→  Role,
+     6→  ServiceCategoryId,
+     7→  WorkerAvailabilitySlot,
+     8→} from "@/lib/types";
+     9→import { computePrice, DEFAULT_RATES } from "@/lib/rates";
+    10→import { recommend } from "./matching";
+    11→import {
+    12→  addBooking,
+    13→  audit,
+    14→  bookingById,
+    15→  categories,
+    16→  confirmBooking,
+    17→  createTicket,
+    18→  customerById,
+    19→  getStore,
+    20→  notify,
+    21→  settleBooking,
+    22→  updatePolicy,
+    23→  voteOnProposal,
+    24→  welfareProfileFor,
+    25→  workerById,
+    26→  workerOverviewFor,
+    27→  ADMIN_USER,
+    28→  CUSTOMER_USER,
+    29→  WORKER_USER,
+    30→} from "./db";
+    31→import { CHECKLISTS, serviceById } from "./catalog";
+    32→
+    33→type Params = Record<string, string>;
+    34→
+    35→const LATENCY = 200;
+    36→
+    37→/* ------------------------------------------------------------------ */
+    38→/* Router                                                              */
+    39→/* ------------------------------------------------------------------ */
+    40→
+    41→type Handler = (req: NextRequest, params: Params, body: any, user: string) => Promise<unknown> | unknown;
+    42→
+    43→const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handler }[] = [];
+    44→
+    45→function route(method: string, path: string, handler: Handler) {
+    46→  const keys: string[] = [];
+    47→  const pattern = new RegExp(
+    48→    "^" +
+    49→      path
+    50→        .split("/")
+    51→        .map((seg) => {
+    52→          if (seg.startsWith(":")) {
+    53→            keys.push(seg.slice(1));
+    54→            return "([^/]+)";
+    55→          }
+    56→          return seg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    57→        })
+    58→        .join("/") +
+    59→      "$",
+    60→  );
+    61→  routes.push({ method, pattern, keys, handler });
+    62→}
+    63→
+    64→export async function handle(req: NextRequest, slug: string[]): Promise<Response> {
+    65→  await new Promise((r) => setTimeout(r, LATENCY));
+    66→  const path = "/" + slug.join("/");
+    67→  const method = req.method.toUpperCase();
+    68→  const user = req.headers.get("x-demo-user") || "";
+    69→
+    70→  let body: any = null;
+    71→  if (method === "POST" || method === "PUT") {
+    72→    try {
+    73→      body = await req.json();
+    74→    } catch {
+    75→      body = {};
+    76→    }
+    77→  }
+    78→
+    79→  for (const r of routes) {
+    80→    if (r.method !== method) continue;
+    81→    const match = path.match(r.pattern);
+    82→    if (!match) continue;
+    83→    const params: Params = {};
+    84→    r.keys.forEach((k, i) => (params[k] = decodeURIComponent(match[i + 1])));
+    85→    try {
+    86→      const result = await r.handler(req, params, body, user || demoUserFor(path));
+    87→      return Response.json(result as any, { status: 200 });
+    88→    } catch (err: any) {
+    89→      return Response.json({ error: err?.message ?? "Request failed" }, { status: 400 });
+    90→    }
+    91→  }
+    92→  return Response.json({ error: "Not found", path }, { status: 404 });
+    93→}
+    94→
+    95→function demoUserFor(path: string): string {
+    96→  if (path.startsWith("/worker") || path.startsWith("/bookings/")) return WORKER_USER;
+    97→  if (path.startsWith("/admin")) return ADMIN_USER;
+    98→  return CUSTOMER_USER;
+    99→}
+   100→
+   101→/* ------------------------------------------------------------------ */
+   102→/* Shared                                                              */
+   103→/* ------------------------------------------------------------------ */
+   104→
+   105→route("GET", "/session", () => {
+   106→  const store = getStore();
+   107→  const customer = customerById(CUSTOMER_USER);
+   108→  const worker = workerById(WORKER_USER);
+   109→  return {
+   110→    platform: {
+   111→      name: "Sahyog",
+   112→      fullName: "Sahyog Cooperative Services Platform",
+   113→      tagline: "Household & community services, run as a worker cooperative",
+   114→      prototype: true,
+   115→    },
+   116→    users: {
+   117→      customer: { id: customer.id, name: customer.name, role: "customer" as Role, subtitle: "Kothrud, Pune", locality: customer.locality },
+   118→      worker: { id: worker.id, name: worker.name, role: "worker" as Role, subtitle: `${worker.tradeTitle} · ${worker.locality}`, locality: worker.locality },
+   119→      admin: { id: ADMIN_USER, name: "Kiran Rao", role: "admin" as Role, subtitle: "Operations Lead · Sahyog Cooperative", locality: "Kothrud Centre" },
+   120→    },
+   121→    rates: DEFAULT_RATES,
+   122→    generatedAt: new Date().toISOString(),
+   123→  };
+   124→});
+   125→
+   126→route("GET", "/categories", () => categories());
+   127→
+   128→route("GET", "/notifications", (_req, _p, _b, user) => {
+   129→  const list = getStore().notifications.filter((n) => n.userId === user);
+   130→  return { items: list, unread: list.filter((n) => !n.read).length };
+   131→});
+   132→
+   133→route("POST", "/notifications/read", (_req, _p, body) => {
+   134→  const store = getStore();
+   135→  if (body.all) {
+   136→    store.notifications.forEach((n) => (n.read = true));
+   137→  } else if (Array.isArray(body.ids)) {
+   138→    store.notifications.forEach((n) => {
+   139→      if (body.ids.includes(n.id)) n.read = true;
+   140→    });
+   141→  }
+   142→  return { ok: true };
+   143→});
+   144→
+   145→/* ------------------------------------------------------------------ */
+   146→/* Customer                                                            */
+   147→/* ------------------------------------------------------------------ */
+   148→
+   149→route("GET", "/customer/overview", (_req, _p, _b, user) => {
+   150→  const store = getStore();
+   151→  const customerId = user || CUSTOMER_USER;
+   152→  const customer = customerById(customerId);
+   153→  const myBookings = store.bookings.filter((b) => b.customerId === customerId);
+   154→  const now = Date.now();
+   155→  const active = myBookings.find((b) => ["confirmed", "en_route", "arrived", "in_progress", "awaiting_confirmation"].includes(b.status));
+   156→  const upcoming = myBookings.filter((b) => ["confirmed", "pending_acceptance"].includes(b.status) && new Date(b.scheduledAt).getTime() > now && b.id !== active?.id);
+   157→  const recent = myBookings
+   158→    .filter((b) => ["completed", "cancelled"].includes(b.status))
+   159→    .sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt))
+   160→    .slice(0, 4);
+   161→  const monthSpend = myBookings
+   162→    .filter((b) => now - +new Date(b.createdAt) < 30 * 86400000 && b.paymentStatus !== "refunded")
+   163→    .reduce((a, b) => a + b.price.customerTotal, 0);
+   164→
+   165→  /* Recommended workers based on preferred categories */
+   166→  const recs = recommend(store.workers, {
+   167→    categoryId: customer.preferredCategories[0],
+   168→    scheduledAt: new Date(now + 86400000),
+   169→    customerLocality: customer.locality,
+   170→    serviceCharge: 800,
+   171→  });
+   172→
+   173→  return {
+   174→    activeBooking: active ?? null,
+   175→    upcomingBookings: upcoming,
+   176→    recentBookings: recent,
+   177→    recommendedWorkers: recs.map((r) => ({ worker: r.worker, score: r.score, reason: r.reasonSummary })),
+   178→    categories: categories(),
+   179→    spentThisMonth: monthSpend,
+   180→    completedCount: myBookings.filter((b) => b.status === "completed").length,
+   181→    savedWorkers: store.savedWorkers,
+   182→  };
+   183→});
+   184→
+   185→route("GET", "/workers", (req) => {
+   186→  const store = getStore();
+   187→  const url = new URL(req.url);
+   188→  const q = (url.searchParams.get("q") ?? "").toLowerCase();
+   189→  const category = url.searchParams.get("category");
+   190→  const minRating = parseFloat(url.searchParams.get("minRating") ?? "0");
+   191→  const maxDistance = parseFloat(url.searchParams.get("maxDistance") ?? "999");
+   192→  const verifiedOnly = url.searchParams.get("verifiedOnly") === "true";
+   193→  const availableToday = url.searchParams.get("availableToday") === "true";
+   194→  const sort = url.searchParams.get("sort") ?? "recommended";
+   195→
+   196→  let list = store.workers.filter((w) => w.status === "verified" || w.status === "suspended");
+   197→  if (q) list = list.filter((w) => [w.name, w.tradeTitle, w.locality, ...w.skills].join(" ").toLowerCase().includes(q));
+   198→  if (category && category !== "all") list = list.filter((w) => w.category === category);
+   199→  if (minRating) list = list.filter((w) => w.rating >= minRating);
+   200→  if (maxDistance < 999) list = list.filter((w) => w.distanceKm <= maxDistance);
+   201→  if (verifiedOnly) list = list.filter((w) => w.status === "verified");
+   202→  const today = new Date().getDay();
+   203→  if (availableToday) list = list.filter((w) => w.availability.some((a) => a.day === today && a.slots.length > 0));
+   204→
+   205→  if (sort === "rating") list.sort((a, b) => b.rating - a.rating);
+   206→  else if (sort === "distance") list.sort((a, b) => a.distanceKm - b.distanceKm);
+   207→  else if (sort === "jobs") list.sort((a, b) => b.completedJobs - a.completedJobs);
+   208→  else list.sort((a, b) => b.rating * 20 + b.completedJobs / 20 - (a.rating * 20 + a.completedJobs / 20));
+   209→
+   210→  return { items: list, total: list.length };
+   211→});
+   212→
+   213→route("GET", "/workers/:id", (_req, params) => {
+   214→  const store = getStore();
+   215→  const worker = store.workers.find((w) => w.id === params.id);
+   216→  if (!worker) throw new Error("Worker not found");
+   217→  const reviews = store.reviews.filter((r) => r.workerId === worker.id).slice(0, 8);
+   218→  const bookingsDone = store.bookings.filter((b) => b.workerId === worker.id && b.status === "completed").length;
+   219→  const similar = store.workers
+   220→    .filter((w) => w.category === worker.category && w.id !== worker.id && w.status === "verified")
+   221→    .slice(0, 3);
+   222→  return { worker, reviews, bookingsDone, similar, saved: store.savedWorkers.includes(worker.id) };
+   223→});
+   224→
+   225→route("POST", "/workers/:id/save", (_req, params) => {
+   226→  const store = getStore();
+   227→  const idx = store.savedWorkers.indexOf(params.id);
+   228→  if (idx >= 0) store.savedWorkers.splice(idx, 1);
+   229→  else store.savedWorkers.push(params.id);
+   230→  return { saved: store.savedWorkers.includes(params.id) };
+   231→});
+   232→
+   233→route("POST", "/matching", (_req, _p, body) => {
+   234→  const store = getStore();
+   235→  const customer = customerById(CUSTOMER_USER);
+   236→  const scheduledAt = new Date(body.scheduledAt ?? Date.now() + 86400000);
+   237→  const recs = recommend(store.workers, {
+   238→    categoryId: body.categoryId as ServiceCategoryId,
+   239→    serviceId: body.serviceId,
+   240→    scheduledAt,
+   241→    customerLocality: customer.locality,
+   242→    serviceCharge: body.charge ?? 800,
+   243→  });
+   244→  return {
+   245→    recommendations: recs,
+   246→    weights: { skill: 35, location: 20, availability: 20, rating: 15, experience: 10 },
+   247→    estimate: computePrice(body.charge ?? 800),
+   248→  };
+   249→});
+   250→
+   251→route("POST", "/bookings", (_req, _p, body) => {
+   252→  const booking = addBooking({
+   253→    customerId: CUSTOMER_USER,
+   254→    workerId: body.workerId,
+   255→    categoryId: body.categoryId,
+   256→    serviceId: body.serviceId,
+   257→    description: body.description ?? "",
+   258→    addressId: body.addressId ?? "addr-home",
+   259→    scheduledAt: body.scheduledAt,
+   260→    customerNotes: body.customerNotes,
+   261→    matchScore: body.matchScore,
+   262→    charge: body.charge,
+   263→  });
+   264→  return { booking };
+   265→});
+   266→
+   267→route("GET", "/bookings", (req) => {
+   268→  const store = getStore();
+   269→  const url = new URL(req.url);
+   270→  const customerId = url.searchParams.get("customerId");
+   271→  const workerId = url.searchParams.get("workerId");
+   272→  const status = url.searchParams.get("status");
+   273→  let list = store.bookings;
+   274→  if (customerId) list = list.filter((b) => b.customerId === customerId);
+   275→  if (workerId) list = list.filter((b) => b.workerId === workerId);
+   276→  if (status && status !== "all") list = list.filter((b) => b.status === status);
+   277→  return { items: list.sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt)) };
+   278→});
+   279→
+   280→route("GET", "/bookings/:id", (_req, params) => {
+   281→  const store = getStore();
+   282→  const booking = bookingById(params.id);
+   283→  if (!booking) throw new Error("Booking not found");
+   284→  const worker = workerById(booking.workerId);
+   285→  const customer = customerById(booking.customerId);
+   286→  const review = store.reviews.find((r) => r.bookingId === booking.id) ?? null;
+   287→  return { booking, worker, customer, address: customer.addresses.find((a) => a.id === booking.addressId) ?? customer.addresses[0], review };
+   288→});
+   289→
+   290→route("POST", "/bookings/:id/cancel", (_req, params, body) => {
+   291→  const booking = bookingById(params.id);
+   292→  if (!booking) throw new Error("Booking not found");
+   293→  if (["completed", "cancelled"].includes(booking.status)) throw new Error("This booking can no longer be cancelled");
+   294→  booking.status = "cancelled";
+   295→  booking.paymentStatus = "refunded";
+   296→  booking.cancellationReason = body?.reason ?? "Cancelled by customer";
+   297→  booking.timeline.push({ id: `ev-${booking.id}-c-${booking.timeline.length}`, at: new Date().toISOString(), label: "Cancelled by customer", detail: body?.reason ?? "", by: customerById(booking.customerId).name });
+   298→  notify(booking.workerId, {
+   299→    kind: "booking",
+   300→    title: "Booking cancelled",
+   301→    body: `${booking.title} (${booking.reference}) was cancelled by the customer. The slot is now free.`,
+   302→    route: { name: "worker-schedule" },
+   303→  });
+   304→  audit(`Booking ${booking.reference} cancelled by customer`, "Booking", customerById(booking.customerId).name, "customer", "notice");
+   305→  return { booking };
+   306→});
+   307→
+   308→route("POST", "/bookings/:id/confirm", (_req, params, body) => {
+   309→  const booking = bookingById(params.id);
+   310→  if (!booking) throw new Error("Booking not found");
+   311→  if (booking.status !== "awaiting_confirmation") throw new Error("This booking is not awaiting confirmation");
+   312→  confirmBooking(booking, body?.rating ? { rating: body.rating, comment: body.comment ?? "", tags: body.tags ?? [] } : undefined);
+   313→  return { booking };
+   314→});
+   315→
+   316→route("POST", "/bookings/:id/rate", (_req, params, body) => {
+   317→  const store = getStore();
+   318→  const booking = bookingById(params.id);
+   319→  if (!booking) throw new Error("Booking not found");
+   320→  if (booking.status !== "completed") throw new Error("Only completed services can be rated");
+   321→  if (store.reviews.some((r) => r.bookingId === booking.id)) throw new Error("This service is already rated");
+   322→  const worker = workerById(booking.workerId);
+   323→  const review = {
+   324→    id: `rev-${booking.id}`,
+   325→    bookingId: booking.id,
+   326→    customerId: booking.customerId,
+   327→    customerName: customerById(booking.customerId).name,
+   328→    workerId: booking.workerId,
+   329→    rating: body.rating,
+   330→    comment: body.comment ?? "",
+   331→    tags: body.tags ?? [],
+   332→    createdAt: new Date().toISOString(),
+   333→  };
+   334→  store.reviews.unshift(review);
+   335→  booking.timeline.push({ id: `ev-${booking.id}-r-${booking.timeline.length}`, at: review.createdAt, label: "Rated by customer", detail: `${body.rating} / 5`, by: review.customerName });
+   336→  const allReviews = store.reviews.filter((r) => r.workerId === booking.workerId);
+   337→  const avg = allReviews.reduce((a, r) => a + r.rating, 0) / allReviews.length;
+   338→  worker.rating = Math.round((Math.min(5, worker.rating * 0.85 + avg * 0.15) * 10)) / 10;
+   339→  worker.reviewCount += 1;
+   340→  notify(booking.workerId, {
+   341→    kind: "booking",
+   342→    title: "New service rating",
+   343→    body: `${customerById(booking.customerId).name} rated ${booking.title} ${body.rating} / 5.`,
+   344→    route: { name: "worker-dashboard" },
+   345→  });
+   346→  return { review, workerRating: worker.rating };
+   347→});
+   348→
+   349→/* ------------------------------------------------------------------ */
+   350→/* Worker                                                              */
+   351→/* ------------------------------------------------------------------ */
+   352→
+   353→route("GET", "/worker/overview", (_req, _p, _b, user) => workerOverviewFor(user || WORKER_USER));
+   354→
+   355→route("GET", "/worker/jobs", (_req, _p, _b, user) => {
+   356→  const store = getStore();
+   357→  const workerId = user || WORKER_USER;
+   358→  const mine = store.bookings
+   359→    .filter((b) => b.workerId === workerId)
+   360→    .sort((a, b) => +new Date(a.scheduledAt) - +new Date(b.scheduledAt));
+   361→  return {
+   362→    offers: mine.filter((b) => b.status === "pending_acceptance"),
+   363→    openRequests: store.openRequests.filter((r) => r.status === "open"),
+   364→    scheduled: mine.filter((b) => b.status === "confirmed"),
+   365→    active: mine.filter((b) => ["en_route", "arrived", "in_progress"].includes(b.status)),
+   366→    awaiting: mine.filter((b) => b.status === "awaiting_confirmation"),
+   367→    history: mine
+   368→      .filter((b) => ["completed", "declined", "cancelled"].includes(b.status))
+   369→      .sort((a, b) => +new Date(b.scheduledAt) - +new Date(a.scheduledAt))
+   370→      .slice(0, 20),
+   371→    worker: workerById(workerId),
+   372→  };
+   373→});
+   374→
+   375→route("POST", "/worker/jobs/:id/accept", (_req, params, _b, user) => {
+   376→  const store = getStore();
+   377→  const workerId = user || WORKER_USER;
+   378→  const worker = workerById(workerId);
+   379→
+   380→  /* Open pool request → convert into a confirmed booking */
+   381→  if (params.id.startsWith("oj-")) {
+   382→    const req = store.openRequests.find((r) => r.id === params.id);
+   383→    if (!req) throw new Error("Request no longer available");
+   384→    req.status = "offered";
+   385→    const service = serviceById(req.categoryId, req.serviceId);
+   386→    const booking: Booking = {
+   387→      id: `bk-oj-${params.id}`,
+   388→      reference: `SG-${String(4000 + parseInt(params.id.slice(3), 10) * 13).slice(-4)}`,
+   389→      customerId: req.customerId,
+   390→      workerId,
+   391→      categoryId: req.categoryId,
+   392→      serviceId: req.serviceId,
+   393→      title: service?.name ?? req.title,
+   394→      description: req.description,
+   395→      addressId: customerById(req.customerId).addresses[0].id,
+   396→      scheduledAt: req.scheduledAt,
+   397→      durationMin: req.durationMin,
+   398→      status: "confirmed",
+   399→      paymentStatus: "authorized",
+   400→      price: req.estimate,
+   401→      matchScore: req.matchScore,
+   402→      createdAt: new Date().toISOString(),
+   403→      checklist: CHECKLISTS[req.categoryId].map((label, i) => ({ id: `chk-${params.id}-${i}`, label, done: false })),
+   404→      evidence: [],
+   405→      timeline: [
+   406→        { id: "ev-0", at: new Date().toISOString(), label: "Request accepted from open pool", detail: `${worker.name} accepted ${req.title}`, by: worker.name },
+   407→        { id: "ev-1", at: new Date().toISOString(), label: "Payment authorised", detail: "Held securely until service completion", by: "Platform" },
+   408→      ],
+   409→    };
+   410→    store.bookings.unshift(booking);
+   411→    store.openRequests = store.openRequests.filter((r) => r.id !== params.id);
+   412→    audit(`Open request ${req.title} claimed by ${worker.name}`, "Job allocation", worker.name, "worker");
+   413→    return { booking };
+   414→  }
+   415→
+   416→  const booking = bookingById(params.id);
+   417→  if (!booking) throw new Error("Booking not found");
+   418→  if (booking.status !== "pending_acceptance") throw new Error("This offer is no longer available");
+   419→  booking.status = "confirmed";
+   420→  booking.timeline.push({ id: `ev-${booking.id}-a-${booking.timeline.length}`, at: new Date().toISOString(), label: "Worker accepted", detail: `${worker.name} accepted the job`, by: worker.name });
+   421→  notify(booking.customerId, {
+   422→    kind: "booking",
+   423→    title: "Booking confirmed",
+   424→    body: `${worker.name} has accepted your request — ${booking.title} is confirmed.`,
+   425→    route: { name: "customer-booking", params: { bookingId: booking.id } },
+   426→  });
+   427→  audit(`Worker accepted ${booking.reference}`, "Booking", worker.name, "worker");
+   428→  return { booking };
+   429→});
+   430→
+   431→route("POST", "/worker/jobs/:id/decline", (_req, params, _b, user) => {
+   432→  const store = getStore();
+   433→  const workerId = user || WORKER_USER;
+   434→  if (params.id.startsWith("oj-")) {
+   435→    store.openRequests = store.openRequests.filter((r) => r.id !== params.id);
+   436→    return { ok: true };
+   437→  }
+   438→  const booking = bookingById(params.id);
+   439→  if (!booking) throw new Error("Booking not found");
+   440→  booking.status = "declined";
+   441→  booking.timeline.push({ id: `ev-${booking.id}-d-${booking.timeline.length}`, at: new Date().toISOString(), label: "Declined by worker", by: workerById(workerId).name });
+   442→  notify(booking.customerId, {
+   443→    kind: "booking",
+   444→    title: "Worker unavailable",
+   445→    body: `${workerById(workerId).name} is unavailable for ${booking.title}. We will recommend other members.`,
+   446→    route: { name: "customer-bookings" },
+   447→  });
+   448→  return { booking };
+   449→});
+   450→
+   451→route("POST", "/bookings/:id/status", (_req, params, body) => {
+   452→  const booking = bookingById(params.id);
+   453→  if (!booking) throw new Error("Booking not found");
+   454→  const status = body.status as BookingStatus;
+   455→  if (!["en_route", "arrived", "in_progress"].includes(status)) throw new Error("Invalid status");
+   456→  booking.status = status;
+   457→  const labels: Record<string, string> = { en_route: "On the way", arrived: "Arrived at location", in_progress: "Service in progress" };
+   458→  booking.timeline.push({ id: `ev-${booking.id}-s-${booking.timeline.length}`, at: new Date().toISOString(), label: labels[status], by: workerById(booking.workerId).name });
+   459→  if (status !== "in_progress") {
+   460→    notify(booking.customerId, {
+   461→      kind: "booking",
+   462→      title: status === "en_route" ? "Worker on the way" : "Worker has arrived",
+   463→      body: `${workerById(booking.workerId).name} — ${booking.title}.`,
+   464→      route: { name: "customer-booking", params: { bookingId: booking.id } },
+   465→    });
+   466→  }
+   467→  return { booking };
+   468→});
+   469→
+   470→route("POST", "/bookings/:id/checklist", (_req, params, body) => {
+   471→  const booking = bookingById(params.id);
+   472→  if (!booking) throw new Error("Booking not found");
+   473→  const item = booking.checklist.find((c) => c.id === body.itemId);
+   474→  if (item) item.done = Boolean(body.done);
+   475→  return { booking };
+   476→});
+   477→
+   478→route("POST", "/bookings/:id/evidence", (_req, params, body) => {
+   479→  const booking = bookingById(params.id);
+   480→  if (!booking) throw new Error("Booking not found");
+   481→  booking.evidence = booking.evidence.filter((e) => e.phase !== body.phase);
+   482→  booking.evidence.push({ phase: body.phase, capturedAt: new Date().toISOString(), label: body.label ?? "" });
+   483→  return { booking };
+   484→});
+   485→
+   486→route("POST", "/bookings/:id/complete", (_req, params) => {
+   487→  const booking = bookingById(params.id);
+   488→  if (!booking) throw new Error("Booking not found");
+   489→  if (!["in_progress", "arrived", "en_route", "confirmed"].includes(booking.status)) throw new Error("Cannot complete from current status");
+   490→  if (booking.checklist.some((c) => !c.done)) throw new Error("Complete all checklist items before finishing");
+   491→  if (!booking.evidence.some((e) => e.phase === "before") || !booking.evidence.some((e) => e.phase === "after")) {
+   492→    throw new Error("Before and after evidence photos are required");
+   493→  }
+   494→  settleBooking(booking);
+   495→  return { booking };
+   496→});
+   497→
+   498→route("GET", "/worker/earnings", (_req, _p, _b, user) => {
+   499→  const store = getStore();
+   500→  const workerId = user || WORKER_USER;
+   501→  const txns = store.transactions.filter((t) => t.workerId === workerId).sort((a, b) => +new Date(b.date) - +new Date(a.date));
+   502→  const now = Date.now();
+   503→  const week = txns.filter((t) => now - +new Date(t.date) < 7 * 86400000);
+   504→  const month = txns.filter((t) => now - +new Date(t.date) < 30 * 86400000);
+   505→  const welfare = welfareProfileFor(workerId);
+   506→
+   507→  /* Weekly series for the last 8 weeks */
+   508→  const weeklySeries = Array.from({ length: 8 }, (_, i) => {
+   509→    const weekStart = now - (8 - i) * 7 * 86400000;
+   510→    const label = new Date(weekStart).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+   511→    const value = txns.filter((t) => {
+   512→      const d = +new Date(t.date);
+   513→      return d >= weekStart && d < weekStart + 7 * 86400000;
+   514→    }).reduce((a, t) => a + t.net, 0);
+   515→    return { label, value };
+   516→  });
+   517→
+   518→  return {
+   519→    summary: {
+   520→      availableBalance: txns.filter((t) => t.status === "credited").reduce((a, t) => a + t.net, 0),
+   521→      pendingSettlement: store.bookings
+   522→        .filter((b) => b.workerId === workerId && b.status === "awaiting_confirmation")
+   523→        .reduce((a, b) => a + b.price.workerNetPayout, 0),
+   524→      weekEarnings: week.reduce((a, t) => a + t.net, 0),
+   525→      monthEarnings: month.reduce((a, t) => a + t.net, 0),
+   526→      completedJobs: txns.length,
+   527→      avgPerJob: txns.length ? Math.round(txns.reduce((a, t) => a + t.net, 0) / txns.length) : 0,
+   528→      welfareYtd: welfare.ytdContribution,
+   529→      tdsYtd: txns.filter((t) => now - +new Date(t.date) < 365 * 86400000).reduce((a, t) => a + t.tds, 0),
+   530→      grossMonth: month.reduce((a, t) => a + t.gross, 0),
+   531→      platformFeesMonth: month.reduce((a, t) => a + t.platformFee, 0),
+   532→      welfareMonth: month.reduce((a, t) => a + t.welfareContribution, 0),
+   533→    },
+   534→    weeklySeries,
+   535→    transactions: txns.slice(0, 30),
+   536→    payouts: store.payouts.filter((p) => p.workerId === workerId),
+   537→    rates: DEFAULT_RATES,
+   538→    nextPayoutDate: new Date(now + 86400000).toISOString(),
+   539→  };
+   540→});
+   541→
+   542→route("GET", "/worker/welfare", (_req, _p, _b, user) => welfareProfileFor(user || WORKER_USER));
+   543→
+   544→route("POST", "/worker/welfare/claims", (_req, _p, body, user) => {
+   545→  const store = getStore();
+   546→  const claim = {
+   547→    id: `clm-live-${store.counters.claim++}`,
+   548→    type: body.type,
+   549→    submittedAt: new Date().toISOString(),
+   550→    amount: Number(body.amount) || 0,
+   551→    status: "submitted" as const,
+   552→    description: body.description ?? "",
+   553→    reference: `WCL-${1100 + store.counters.claim}`,
+   554→  };
+   555→  const profile = welfareProfileFor(user || WORKER_USER);
+   556→  profile.claims.unshift(claim);
+   557→  /* also persist into a claims store so it survives re-derivation */
+   558→  (store as any).extraClaims = [...((store as any).extraClaims ?? []), { ...claim, workerId: user || WORKER_USER }];
+   559→  notify(user || WORKER_USER, {
+   560→    kind: "support",
+   561→    title: "Welfare claim submitted",
+   562→    body: `${claim.type} (₹${claim.amount.toLocaleString("en-IN")}) received. Reference ${claim.reference}.`,
+   563→    route: { name: "worker-welfare" },
+   564→  });
+   565→  audit(`Welfare claim ${claim.reference} submitted`, "Welfare claim", workerById(user || WORKER_USER).name, "worker");
+   566→  return { claim };
+   567→});
+   568→
+   569→route("GET", "/worker/schedule", (_req, _p, _b, user) => {
+   570→  const store = getStore();
+   571→  const workerId = user || WORKER_USER;
+   572→  const mine = store.bookings.filter((b) => b.workerId === workerId && !["cancelled", "declined"].includes(b.status));
+   573→  return { bookings: mine, worker: workerById(workerId) };
+   574→});
+   575→
+   576→route("GET", "/worker/availability", (_req, _p, _b, user) => workerById(user || WORKER_USER).availability);
+   577→
+   578→route("PUT", "/worker/availability", (_req, _p, body, user) => {
+   579→  const worker = workerById(user || WORKER_USER);
+   580→  worker.availability = body.availability as WorkerAvailabilitySlot[];
+   581→  audit("Availability updated", "Availability", worker.name, "worker");
+   582→  return { availability: worker.availability };
+   583→});
+   584→
+   585→route("GET", "/worker/verification", (_req, _p, _b, user) => {
+   586→  const worker = workerById(user || WORKER_USER);
+   587→  return { worker, verification: worker.verification, certifications: worker.certifications };
+   588→});
+   589→
+   590→route("GET", "/worker/skills", (_req, _p, _b, user) => {
+   591→  const store = getStore();
+   592→  return { courses: store.courses, credits: store.courses.filter((c) => c.status === "completed").reduce((a, c) => a + c.creditValue, 0) };
+   593→});
+   594→
+   595→/* ------------------------------------------------------------------ */
+   596→/* Governance                                                          */
+   597→/* ------------------------------------------------------------------ */
+   598→
+   599→route("GET", "/governance", () => getStore().governance);
+   600→
+   601→route("POST", "/governance/vote", (_req, _p, body, user) => {
+   602→  const result = voteOnProposal(body.proposalId, body.vote, user || WORKER_USER);
+   603→  if (!result) throw new Error("Vote could not be recorded — you may have already voted or the proposal is closed");
+   604→  notify(ADMIN_USER, {
+   605→    kind: "governance",
+   606→    title: "New vote recorded",
+   607→    body: `${workerById(user || WORKER_USER).name} voted on ${result.code}.`,
+   608→    route: { name: "admin-governance" },
+   609→  });
+   610→  return { proposal: result };
+   611→});
+   612→
+   613→/* ------------------------------------------------------------------ */
+   614→/* Support                                                             */
+   615→/* ------------------------------------------------------------------ */
+   616→
+   617→route("GET", "/support/tickets", (_req, _p, _b, user) => {
+   618→  const store = getStore();
+   619→  if (user === ADMIN_USER) return { tickets: store.tickets };
+   620→  const customer = store.customers.find((c) => c.id === user);
+   621→  if (customer) return { tickets: store.tickets.filter((t) => t.raisedByRole === "customer" && t.raisedByName === customer.name) };
+   622→  const worker = store.workers.find((w) => w.id === user);
+   623→  if (worker) return { tickets: store.tickets.filter((t) => t.raisedByRole === "worker" && t.raisedByName === worker.name) };
+   624→  return { tickets: [] };
+   625→});
+   626→
+   627→route("POST", "/support/tickets", (_req, _p, body, user) => {
+   628→  const store = getStore();
+   629→  const isWorker = body.raisedByRole === "worker";
+   630→  const name = isWorker ? workerById(user || WORKER_USER).name : customerById(user || CUSTOMER_USER).name;
+   631→  const ticket = createTicket({
+   632→    raisedByRole: isWorker ? "worker" : "customer",
+   633→    raisedByName: name,
+   634→    type: body.type,
+   635→    category: body.category,
+   636→    subject: body.subject,
+   637→    description: body.description,
+   638→    relatedBookingRef: body.relatedBookingRef,
+   639→  });
+   640→  return { ticket };
+   641→});
+   642→
+   643→/* ------------------------------------------------------------------ */
+   644→/* Admin                                                               */
+   645→/* ------------------------------------------------------------------ */
+   646→
+   647→route("GET", "/admin/overview", () => {
+   648→  const store = getStore();
+   649→  const now = Date.now();
+   650→  const todayStr = new Date().toDateString();
+   651→  const workers = store.workers;
+   652→  const verifiedWorkers = workers.filter((w) => w.status === "verified");
+   653→  const bookingsToday = store.bookings.filter((b) => new Date(b.scheduledAt).toDateString() === todayStr);
+   654→  const completedToday = store.bookings.filter((b) => b.status === "completed" && b.timeline.some((e) => e.label === "Service completed" && new Date(e.at).toDateString() === todayStr));
+   655→  const openTickets = store.tickets.filter((t) => !["resolved"].includes(t.status));
+   656→
+   657→  const bookingsTrend = Array.from({ length: 14 }, (_, i) => {
+   658→    const d = new Date(now - (13 - i) * 86400000);
+   659→    const count = store.bookings.filter((b) => new Date(b.scheduledAt).toDateString() === d.toDateString()).length;
+   660→    return { label: d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }), value: count + 6 };
+   661→  });
+   662→
+   663→  const categoryDemand = categories().map((c) => ({
+   664→    label: c.name,
+   665→    value: store.bookings.filter((b) => b.categoryId === c.id && now - +new Date(b.createdAt) < 30 * 86400000).length + 18,
+   666→  }));
+   667→
+   668→  const quality = categories().map((c) => {
+   669→    const catWorkers = verifiedWorkers.filter((w) => w.category === c.id);
+   670→    const avg = catWorkers.length ? catWorkers.reduce((a, w) => a + w.rating, 0) / catWorkers.length : 0;
+   671→    return { label: c.name, value: Math.round(avg * 10) / 10 };
+   672→  });
+   673→
+   674→  const localityMap = new Map<string, { bookings: number; workers: number }>();
+   675→  for (const w of verifiedWorkers) {
+   676→    const entry = localityMap.get(w.locality) ?? { bookings: 0, workers: 0 };
+   677→    entry.workers += 1;
+   678→    localityMap.set(w.locality, entry);
+   679→  }
+   680→  for (const b of store.bookings) {
+   681→    const loc = customerById(b.customerId).locality;
+   682→    const entry = localityMap.get(loc) ?? { bookings: 0, workers: 0 };
+   683→    entry.bookings += 1;
+   684→    localityMap.set(loc, entry);
+   685→  }
+   686→  const geographic = [...localityMap.entries()]
+   687→    .map(([locality, v]) => ({
+   688→      locality,
+   689→      bookings: v.bookings,
+   690→      workers: v.workers,
+   691→      avgRating: Math.round((4.4 + (v.bookings % 5) * 0.1) * 10) / 10,
+   692→    }))
+   693→    .sort((a, b) => b.bookings - a.bookings)
+   694→    .slice(0, 8);
+   695→
+   696→  const welfarePool = store.transactions.reduce((a, t) => a + t.welfareContribution, 0) + 412000;
+   697→
+   698→  return {
+   699→    kpis: {
+   700→      activeWorkers: verifiedWorkers.length,
+   701→      pendingVerifications: workers.filter((w) => ["pending", "under_review", "needs_action"].includes(w.status)).length,
+   702→      activeCustomers: store.customers.length,
+   703→      bookingsToday: bookingsToday.length,
+   704→      completedToday: completedToday.length,
+   705→      openDisputes: openTickets.filter((t) => ["dispute", "complaint", "escalated"].some((k) => t.type === k || t.status === k)).length,
+   706→      transactionVolumeToday: bookingsToday.filter((b) => b.paymentStatus !== "refunded").reduce((a, b) => a + b.price.customerTotal, 0),
+   707→      welfarePoolTotal: welfarePool,
+   708→      avgRating: Math.round((verifiedWorkers.reduce((a, w) => a + w.rating, 0) / verifiedWorkers.length) * 10) / 10,
+   709→      csat: 89,
+   710→      onTimeRate: Math.round(verifiedWorkers.reduce((a, w) => a + w.onTimeRate, 0) / verifiedWorkers.length),
+   711→      cancellationRate: Math.round((store.bookings.filter((b) => b.status === "cancelled").length / store.bookings.length) * 100),
+   712→    },
+   713→    bookingsTrend,
+   714→    categoryDemand,
+   715→    quality,
+   716→    geographic,
+   717→    alerts: [
+   718→      { id: "al-1", severity: "critical" as const, title: "Escalated dispute awaiting action", detail: "SUP-5846 — 2 BHK vs 1 BHK billing dispute (Manish Agarwal).", action: "Review case", route: "admin-disputes" },
+   719→      { id: "al-2", severity: "warning" as const, title: "Capacity gap on Saturday evening", detail: "Forecast predicts a 12-worker gap for electrical services, 4–8 PM.", action: "Open forecast", route: "admin-forecast" },
+   720→      { id: "al-3", severity: "warning" as const, title: "Verification needs action", detail: "Ganesh Salunke's address proof expired — fresh proof requested 4 days ago.", action: "Open queue", route: "admin-verifications" },
+   721→      { id: "al-4", severity: "info" as const, title: "Payout batch processing", detail: "₹4.2L for 84 members settles tomorrow evening — finance review pending.", action: "Open finance", route: "admin-finance" },
+   722→    ],
+   723→    recentBookings: store.bookings.slice(0, 8),
+   724→    workerUtilization: categories().map((c) => {
+   725→      const catWorkers = verifiedWorkers.filter((w) => w.category === c.id);
+   726→      const weekJobs = store.bookings.filter((b) => b.categoryId === c.id && now - +new Date(b.scheduledAt) < 7 * 86400000 && b.status === "completed").length;
+   727→      return { label: c.name, value: catWorkers.length ? Math.round(((weekJobs + catWorkers.length * 4) / (catWorkers.length * 6)) * 100) : 0 };
+   728→    }),
+   729→  };
+   730→});
+   731→
+   732→route("GET", "/admin/forecast", () => getStore().forecast);
+   733→
+   734→route("GET", "/admin/workers", (req) => {
+   735→  const store = getStore();
+   736→  const url = new URL(req.url);
+   737→  const status = url.searchParams.get("status");
+   738→  let workers = store.workers;
+   739→  if (status && status !== "all") workers = workers.filter((w) => w.status === status);
+   740→  return {
+   741→    items: workers.map((w) => ({
+   742→      ...w,
+   743→      weekJobs: store.bookings.filter((b) => b.workerId === w.id && Date.now() - +new Date(b.scheduledAt) < 7 * 86400000 && b.status === "completed").length,
+   744→      weekEarnings: store.transactions.filter((t) => t.workerId === w.id && Date.now() - +new Date(t.date) < 7 * 86400000).reduce((a, t) => a + t.net, 0),
+   745→    })),
+   746→  };
+   747→});
+   748→
+   749→route("GET", "/admin/verifications", () => {
+   750→  const store = getStore();
+   751→  const queue = store.workers
+   752→    .filter((w) => ["pending", "under_review", "needs_action", "rejected"].includes(w.status))
+   753→    .map((w) => ({ worker: w, daysInQueue: Math.max(1, Math.round((Date.now() - +new Date(w.memberSince)) / 86400000)) }));
+   754→  return { queue, verifiedCount: store.workers.filter((w) => w.status === "verified").length };
+   755→});
+   756→
+   757→route("POST", "/admin/verifications/:workerId/decision", (_req, params, body) => {
+   758→  const store = getStore();
+   759→  const worker = workerById(params.workerId);
+   760→  if (!worker) throw new Error("Worker not found");
+   761→  const decision = body.decision as "approved" | "rejected" | "needs_action";
+   762→  if (decision === "approved") {
+   763→    worker.status = "verified";
+   764→    worker.verification.forEach((v) => {
+   765→      if (v.status !== "rejected") v.status = "verified";
+   766→    });
+   767→    worker.cooperativeMemberId = `SGW-0${170 + store.workers.length}`;
+   768→    notify(worker.id, {
+   769→      kind: "verification",
+   770→      title: "Verification approved",
+   771→      body: "Welcome to the cooperative. Your membership is active — you can now receive job offers.",
+   772→      route: { name: "worker-verification" },
+   773→    });
+   774→  } else if (decision === "rejected") {
+   775→    worker.status = "rejected";
+   776→    notify(worker.id, {
+   777→      kind: "verification",
+   778→      title: "Verification update",
+   779→      body: body.note ?? "Your application could not be approved at this stage.",
+   780→      route: { name: "worker-verification" },
+   781→    });
+   782→  } else {
+   783→    worker.status = "needs_action";
+   784→    notify(worker.id, {
+   785→      kind: "verification",
+   786→      title: "Verification needs action",
+   787→      body: body.note ?? "Please update the requested documents.",
+   788→      route: { name: "worker-verification" },
+   789→    });
+   790→  }
+   791→  audit(`Verification ${decision} — ${worker.name}`, "Verification record", "Kiran Rao", "admin", decision === "rejected" ? "warning" : "info");
+   792→  return { worker };
+   793→});
+   794→
+   795→route("GET", "/admin/bookings", (req) => {
+   796→  const store = getStore();
+   797→  const url = new URL(req.url);
+   798→  const status = url.searchParams.get("status");
+   799→  let items = store.bookings;
+   800→  if (status && status !== "all") items = items.filter((b) => b.status === status);
+   801→  return {
+   802→    items: [...items]
+   803→      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt))
+   804→      .map((b) => ({ booking: b, customerName: customerById(b.customerId).name, workerName: workerById(b.workerId).name })),
+   805→  };
+   806→});
+   807→
+   808→route("GET", "/admin/disputes", () => {
+   809→  const store = getStore();
+   810→  return { items: store.tickets };
+   811→});
+   812→
+   813→route("POST", "/admin/disputes/:ticketId/resolve", (_req, params, body) => {
+   814→  const store = getStore();
+   815→  const ticket = store.tickets.find((t) => t.id === params.ticketId);
+   816→  if (!ticket) throw new Error("Ticket not found");
+   817→  ticket.status = "resolved";
+   818→  ticket.resolution = body.resolution;
+   819→  ticket.updatedAt = new Date().toISOString();
+   820→  ticket.messages.push({ id: `msg-${ticket.id}-res`, at: new Date().toISOString(), author: "Kiran Rao (Operations)", body: body.resolution });
+   821→  const targetUser = ticket.raisedByRole === "worker" ? store.workers.find((w) => w.name === ticket.raisedByName)?.id : store.customers.find((c) => c.name === ticket.raisedByName)?.id;
+   822→  if (targetUser) {
+   823→    notify(targetUser, {
+   824→      kind: "support",
+   825→      title: `Ticket ${ticket.reference} resolved`,
+   826→      body: body.resolution.slice(0, 140),
+   827→      route: { name: ticket.raisedByRole === "worker" ? "worker-support" : "customer-support" },
+   828→    });
+   829→  }
+   830→  audit(`Resolved ticket ${ticket.reference}`, "Support ticket", "Kiran Rao", "admin");
+   831→  return { ticket };
+   832→});
+   833→
+   834→route("GET", "/admin/finance", () => {
+   835→  const store = getStore();
+   836→  const now = Date.now();
+   837→  const monthTxns = store.transactions.filter((t) => now - +new Date(t.date) < 30 * 86400000);
+   838→  const revenueSeries = Array.from({ length: 8 }, (_, i) => {
+   839→    const weekStart = now - (8 - i) * 7 * 86400000;
+   840→    const label = new Date(weekStart).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+   841→    const value = store.transactions
+   842→      .filter((t) => {
+   843→        const d = +new Date(t.date);
+   844→        return d >= weekStart && d < weekStart + 7 * 86400000;
+   845→      })
+   846→      .reduce((a, t) => a + t.platformFee, 0);
+   847→    return { label, value: value + 18400 };
+   848→  });
+   849→  const welfarePool = store.transactions.reduce((a, t) => a + t.welfareContribution, 0) + 412000;
+   850→  return {
+   851→    revenueSeries,
+   852→    commissionMonth: monthTxns.reduce((a, t) => a + t.platformFee, 0) + 186500,
+   853→    gstCollectedMonth: monthTxns.reduce((a, t) => a + Math.round((t.platformFee * DEFAULT_RATES.gstPct) / 100), 0) + 33500,
+   854→    welfarePoolMonth: monthTxns.reduce((a, t) => a + t.welfareContribution, 0) + 91200,
+   855→    welfarePoolTotal: welfarePool,
+   856→    payoutsPending: 418700,
+   857→    payoutsProcessedMonth: 1265400,
+   858→    tdsRemittedMonth: monthTxns.reduce((a, t) => a + t.tds, 0) + 21400,
+   859→    disputeHolds: 4983,
+   860→    reconciliation: [
+   861→      { label: "Customer payments received", amount: 2418600, expected: 2418600, status: "matched" as const },
+   862→      { label: "Worker payouts settled", amount: 2176700, expected: 2176700, status: "matched" as const },
+   863→      { label: "Welfare fund credits", amount: 91200, expected: 91200, status: "matched" as const },
+   864→      { label: "GST + TDS payable", amount: 54900, expected: 54900, status: "matched" as const },
+   865→      { label: "Dispute holds", amount: 4983, expected: 4200, status: "variance" as const },
+   866→    ],
+   867→  };
+   868→});
+   869→
+   870→route("GET", "/admin/governance", () => {
+   871→  const store = getStore();
+   872→  return {
+   873→    ...store.governance,
+   874→    participationSeries: [
+   875→      { label: "Q4 FY25", value: 58 },
+   876→      { label: "Q1 FY26", value: 66 },
+   877→      { label: "Q2 FY26", value: 71 },
+   878→      { label: "Current", value: store.governance.activeProposals[0]?.participationPct ?? 64 },
+   879→    ],
+   880→  };
+   881→});
+   882→
+   883→route("POST", "/admin/governance/proposals", (_req, _p, body) => {
+   884→  const store = getStore();
+   885→  const proposal = {
+   886→    id: `gp-live-${store.governance.activeProposals.length + 1}`,
+   887→    code: `PRO-2026-0${20 + store.governance.activeProposals.length}`,
+   888→    title: body.title,
+   889→    summary: body.summary ?? "",
+   890→    description: body.description ?? "",
+   891→    status: "active" as const,
+   892→    category: body.category ?? "General",
+   893→    openedAt: new Date().toISOString(),
+   894→    closesAt: new Date(Date.now() + 14 * 86400000).toISOString(),
+   895→    participationPct: 0,
+   896→    eligibleMembers: 216,
+   897→    votes: { approve: 0, reject: 0, abstain: 0 },
+   898→    quorumPct: 50,
+   899→    proposedBy: "Kiran Rao (Operations)",
+   900→  };
+   901→  store.governance.activeProposals.push(proposal);
+   902→  for (const w of store.workers.filter((w) => w.status === "verified")) {
+   903→    notify(w.id, {
+   904→      kind: "governance",
+   905→      title: "Cooperative vote open",
+   906→      body: `${proposal.code} — ${proposal.title}`,
+   907→      route: { name: "worker-governance" },
+   908→    });
+   909→  }
+   910→  audit(`Published proposal ${proposal.code} for member voting`, "Governance proposal", "Kiran Rao", "admin", "notice");
+   911→  return { proposal };
+   912→});
+   913→
+   914→route("GET", "/admin/categories", () => {
+   915→  const store = getStore();
+   916→  const now = Date.now();
+   917→  return {
+   918→    categories: categories().map((c) => ({
+   919→      ...c,
+   920→      activeWorkers: store.workers.filter((w) => w.category === c.id && w.status === "verified").length,
+   921→      bookings30d: store.bookings.filter((b) => b.categoryId === c.id && now - +new Date(b.createdAt) < 30 * 86400000).length,
+   922→      avgRating: (() => {
+   923→        const ws = store.workers.filter((w) => w.category === c.id && w.status === "verified");
+   924→        return ws.length ? Math.round((ws.reduce((a, w) => a + w.rating, 0) / ws.length) * 10) / 10 : 0;
+   925→      })(),
+   926→    })),
+   927→  };
+   928→});
+   929→
+   930→route("PUT", "/admin/categories/:categoryId/services/:serviceId", (_req, params, body) => {
+   931→  const cat = categories().find((c) => c.id === params.categoryId);
+   932→  const svc = cat?.services.find((s) => s.id === params.serviceId);
+   933→  if (!svc) throw new Error("Service not found");
+   934→  svc.basePrice = Number(body.basePrice) || svc.basePrice;
+   935→  audit(`Category rate updated — ${cat!.name}: ${svc.name} → ₹${svc.basePrice}`, "Service category", "Kiran Rao", "admin", "notice");
+   936→  return { service: svc };
+   937→});
+   938→
+   939→route("GET", "/admin/audit", () => ({ items: getStore().audit }));
+   940→
+   941→route("GET", "/admin/policies", () => getStore().policy);
+   942→
+   943→route("PUT", "/admin/policies", (_req, _p, body) => {
+   944→  const policy = updatePolicy(body, "Kiran Rao");
+   945→  for (const w of getStore().workers.filter((w) => w.status === "verified")) {
+   946→    notify(w.id, {
+   947→      kind: "system",
+   948→      title: "Platform policy updated",
+   949→      body: `Commission ${policy.commissionPct}% · welfare ${policy.welfarePct}%. Full details in your earnings statement.`,
+   950→      route: { name: "worker-earnings" },
+   951→    });
+   952→  }
+   953→  return { policy };
+   954→});
+   955→
+   956→/* ------------------------------------------------------------------ */
+   957→
+   958→export const runtime = "nodejs";
+   959→
