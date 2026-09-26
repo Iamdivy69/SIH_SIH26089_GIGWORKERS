@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, CheckCircle2, Clock, Info, Lock, MapPin, CircleDashed } from "lucide-react";
+import { useRef } from "react";
+import { Check, CheckCircle2, Clock, Info, Lock, MapPin, MessageSquare, CircleDashed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
@@ -17,6 +18,7 @@ import {
 } from "@/hooks/use-api";
 import {
   AlertBanner,
+  BookingChat,
   EmptyState,
   EvidenceTile,
   PageHeader,
@@ -104,6 +106,7 @@ function Stepper({ current, times, lastLabel }: { current: number; times: (strin
 
 export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
   const navigate = useAppStore((s) => s.navigate);
+  const chatRef = useRef<HTMLDivElement>(null);
   const q = useBooking(bookingId);
   const statusMutation = useBookingStatus();
   const checklistMutation = useChecklistToggle();
@@ -145,7 +148,14 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
               actions={
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusBadge status={booking.status} />
-                  <ContactActions name={customer.name} />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => chatRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.9} /> Message
+                  </Button>
+                  <ContactActions name={customer.name} hideMessage />
                 </div>
               }
             />
@@ -261,6 +271,15 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                     </div>
                   )}
                 </SectionCard>
+
+                <div ref={chatRef}>
+                  <SectionCard
+                    title={`Messages with ${customer.name.split(" ")[0]}`}
+                    description="Scoped to this job — timings, gate codes and updates stay with the booking record."
+                  >
+                    <BookingChat booking={booking} viewerRole="worker" otherName={customer.name} />
+                  </SectionCard>
+                </div>
 
                 <SectionCard
                   title="Job requirements & checklist"

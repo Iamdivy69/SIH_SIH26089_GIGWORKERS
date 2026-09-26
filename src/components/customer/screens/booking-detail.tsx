@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   CalendarPlus,
   Camera,
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   AlertBanner,
+  BookingChat,
   CustomerPriceLines,
   ErrorState,
   MatchBadge,
@@ -109,6 +110,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
   const [rating, setRating] = useState(0);
   const [ratingTags, setRatingTags] = useState<string[]>([]);
   const [ratingComment, setRatingComment] = useState("");
+  const chatRef = useRef<HTMLDivElement>(null);
 
   if (isLoading) {
     return (
@@ -222,13 +224,22 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => toast(`Message thread with ${worker.name}`, { description: "Messaging is simulated in this prototype." })}
+                    onClick={() => chatRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })}
                   >
                     <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.9} /> Message
                   </Button>
                 </div>
               </div>
             </SectionCard>
+
+            <div ref={chatRef}>
+              <SectionCard
+                title={`Messages with ${worker.name.split(" ")[0]}`}
+                description="Scoped to this booking — access details, timings and updates stay with the service record."
+              >
+                <BookingChat booking={booking} viewerRole="customer" otherName={worker.name} />
+              </SectionCard>
+            </div>
 
             {(canConfirm || canRate) && (
               <SectionCard

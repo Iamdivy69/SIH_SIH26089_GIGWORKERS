@@ -30,7 +30,7 @@ export function KpiStrip({ cells, className }: { cells: KpiCellData[]; className
     <div
       className={cn(
         "grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4",
-        wide && "xl:grid-cols-8",
+        wide && "2xl:grid-cols-8",
         className,
       )}
       role="list"
@@ -38,11 +38,11 @@ export function KpiStrip({ cells, className }: { cells: KpiCellData[]; className
     >
       {cells.map((c) => (
         <div key={c.label} className="min-w-0 bg-card px-4 py-3.5" role="listitem">
-          <p className="micro-label truncate">{c.label}</p>
+          <p className="micro-label leading-[1.35]">{c.label}</p>
           <p className={cn("tnum mt-1.5 text-[20px] font-semibold leading-tight tracking-tight", TONE_TEXT[c.tone ?? "default"])}>
             {c.value}
           </p>
-          {c.sub && <p className="mt-1 truncate text-xs text-muted-foreground">{c.sub}</p>}
+          {c.sub && <p className="mt-1 line-clamp-2 text-xs leading-snug text-muted-foreground">{c.sub}</p>}
         </div>
       ))}
     </div>
@@ -55,7 +55,7 @@ export function KpiStripSkeleton({ count = 8, className }: { count?: number; cla
     <div
       className={cn(
         "grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-4",
-        count > 4 && "xl:grid-cols-8",
+        count > 4 && "2xl:grid-cols-8",
         className,
       )}
     >

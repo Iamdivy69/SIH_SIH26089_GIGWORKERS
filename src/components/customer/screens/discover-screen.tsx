@@ -83,18 +83,18 @@ export function DiscoverScreen({ categoryParam }: { categoryParam?: string }) {
       <section aria-label="Search and filters" className="rounded-lg border bg-card p-4 sm:p-5">
         <div className="flex flex-col gap-3">
           <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.9} />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.9} />
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search by name, trade or skill — “electrician”, “deep clean”, “care”…"
-              className="pl-9"
+              className="h-10 pl-10 text-sm"
               aria-label="Search members"
             />
           </div>
 
           {/* Category chips */}
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by category">
+          <div className="flex flex-wrap gap-1.5 pt-0.5" role="group" aria-label="Filter by category">
             <button
               type="button"
               aria-pressed={category === "all"}
@@ -132,7 +132,8 @@ export function DiscoverScreen({ categoryParam }: { categoryParam?: string }) {
           </div>
 
           {/* Filters row */}
-          <div className="flex flex-wrap items-end gap-x-5 gap-y-3 border-t pt-3">
+          <div className="flex flex-wrap items-end gap-x-5 gap-y-3 border-t pt-3.5">
+            <p className="micro-label hidden w-full sm:block">Refine results</p>
             <div className="w-[150px]">
               <Label htmlFor="df-sort" className="text-xs text-muted-foreground">Sort by</Label>
               <Select value={sort} onValueChange={setSort}>

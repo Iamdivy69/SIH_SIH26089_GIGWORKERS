@@ -26,7 +26,7 @@ The whole journey works end-to-end **in one browser session**, because all three
 2. Describe the issue → the platform shows **recommended members with an explainable score** (Priya Sharma ~92%: skill 35% · location 20% · availability 20% · rating 15% · experience 10%, every factor rated and reasoned)
 3. Pick a slot → **transparent pricing**: service charge + welfare contribution (3%) + platform processing (6%) + GST, with a *where your payment goes* allocation bar
 4. Pay (simulated UPI) → booking `pending_acceptance`, Priya is notified
-5. Switch role to **Worker** (Priya Sharma) → *Job opportunities* → the offer appears with match reasons and full payout → **Accept**
+5. Switch role to **Worker** (Priya Sharma) → *Job opportunities* → the offer appears with match reasons and full payout → **Accept** (use the booking-scoped **message thread** to coordinate timings or gate codes — the customer sees it instantly on their booking page)
 6. Open the execution screen → *I'm on the way* → *Mark arrival* → *Start service* → complete the checklist → capture before/after evidence (simulated) → **Complete service**
 7. Switch back to **Customer** → booking is *Awaiting confirmation* → **Confirm & submit rating** (stars + tags)
 8. Payment settles → back as **Worker**: the earnings transaction (₹800 gross → ₹792 net + ₹24 welfare credit) appears in *Earnings*, the contribution in *Welfare & benefits*
@@ -36,9 +36,9 @@ The whole journey works end-to-end **in one browser session**, because all three
 
 | Experience | Screens |
 |---|---|
-| **Customer** | Home, service discovery & filters, worker trust profiles, 6-step booking flow with explainable matching, bookings & tracking, confirm + rate, payments & invoices, support, profile |
-| **Worker (member-owner)** | Dashboard, job offers with match explanations, service execution (status flow, checklist, evidence), schedule, availability editor, earnings with full payout breakdowns, welfare & benefits portal (insurance, pension pot, claims), cooperative governance (live voting, meetings, dividend), verification, skill academy, support |
-| **Cooperative admin** | Operations overview (KPIs, alerts, trends), 7-day demand forecasting with capacity gaps & recommended actions, worker management, verification workflow, bookings monitor, dispute resolution, finance & reconciliation, governance publishing, service catalogue rates, platform policies, audit log |
+| **Customer** | Home, service discovery & filters, worker trust profiles, 6-step booking flow with explainable matching, bookings & tracking with booking-scoped chat, confirm + rate, payments & invoices (per-invoice CSV download + full statement export), support, profile |
+| **Worker (member-owner)** | Dashboard, job offers with match explanations, service execution (status flow, checklist, evidence, customer chat), schedule, availability editor, earnings with full payout breakdowns, welfare & benefits portal (insurance, pension pot, claims), cooperative governance (live voting, meetings, dividend), verification, skill academy, support |
+| **Cooperative admin** | Operations overview (KPIs, alerts, trends), 7-day demand forecasting with capacity gaps & recommended actions, worker management (CSV export), verification workflow, bookings monitor (CSV export), dispute resolution, finance & reconciliation, governance publishing, service catalogue rates, platform policies, audit log |
 
 ### Cooperative model, visible in the product
 - **Transparent finance** — every price and payout shows the full breakdown; rates (6% platform / 3% welfare / 18% GST / 1% TDS) are set by cooperative policy and editable on the admin *Policies* screen
@@ -65,6 +65,7 @@ src/
     types.ts                  # full domain model
     rates.ts                  # pricing engine (single source of truth)
     format.ts                 # en-IN currency, dates, defensive formatters
+    csv.ts                    # client-side CSV export (statement, invoices, registers)
   hooks/use-api.ts            # typed TanStack Query hooks for every endpoint
   store/app-store.ts          # zustand + hash router (#/route/params)
   components/

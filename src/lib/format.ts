@@ -67,8 +67,11 @@ export function dateTimeLabel(iso: string): string {
 
 export function relativeTime(iso: string): string {
   try {
-    if (Number.isNaN(toDate(iso).getTime())) return "—";
-    return `${formatDistanceToNowStrict(toDate(iso))} ago`;
+    const d = toDate(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    const distance = formatDistanceToNowStrict(d);
+    /* future timestamps (clock skew, fresh seeds) read as "in …", never "… ago" */
+    return d.getTime() > Date.now() ? `in ${distance}` : `${distance} ago`;
   } catch {
     return "—";
   }

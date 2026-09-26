@@ -143,3 +143,13 @@ Booking lifecycle statuses: `pending_acceptance → confirmed → en_route → a
 ## 7. When you finish
 
 Append to `/home/z/my-project/worklog.md` (append, never overwrite) with the Task ID template you were given. List every file you created.
+
+---
+
+## 8. Post-build additions (round 4 — keep in sync when extending)
+
+- **Booking-scoped chat** — `BookingMessage[]` lives on `Booking.messages`. Shared component `shared/booking-chat.tsx` (`BookingChat`) serves both sides (`viewerRole: "customer" | "worker"`): bubbles align by viewer, quick-reply chips per role, composer open while status is pre-completion. Endpoint `POST /bookings/:id/messages { text }` (author derived from `x-demo-user`; ownership enforced — only the booking's customer/worker may post). Sending notifies the other party with a deep-link route. Seeded threads: `bk-105` (Ananya↔Arjun), `bk-305`, `bk-306` (Priya). `useSendMessage` invalidates `["booking", id]`.
+- **CSV export** — `lib/csv.ts` (`downloadCsv`, `csvDateStamp`). Wired on: admin bookings ("Export CSV", full pricing columns), admin workers ("Export CSV", member register), customer payments ("Statement (CSV)" + per-invoice download inside the invoice dialog). All exports reflect the active filters.
+- **Seed versioning** — `src/server/db.ts` exports `getStore()` guarded by `SEED_VERSION`. **Bump `SEED_VERSION` whenever you change anything in `src/server/seed.ts`** — a stale in-memory store from a previous HMR cycle reseeds automatically; no dev-server restart needed.
+- **Future-relative seeds** — seeded chat times are offsets from the scheduled slot and clamped into the past at seed time (whole-thread shift, ordering preserved). `relativeTime()` renders future timestamps as "in …" instead of "… ago".
+- **Sidebar active context** — detail routes map to their parent nav item via `PARENT_ROUTE` in `platform/sidebar.tsx` (e.g. `worker-job` → "Job opportunities"). Nav badges carry human tooltips (`BADGE_HINTS`).

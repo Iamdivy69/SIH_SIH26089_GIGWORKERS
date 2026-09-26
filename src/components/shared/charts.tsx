@@ -54,7 +54,16 @@ export function TrendAreaChart({ data, height = 200, currency, className }: { da
           <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" minTickGap={24} />
           <YAxis {...AXIS} width={44} tickFormatter={(v) => (currency ? (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v)) : num(v))} />
           <Tooltip content={<ChartTooltip format={currency ? money : undefined} />} />
-          <Area type="monotone" dataKey="value" name="Value" stroke="var(--primary)" strokeWidth={1.75} fill="url(#trendFill)" activeDot={{ r: 3.5, strokeWidth: 0 }} />
+          <Area
+            type="monotone"
+            dataKey="value"
+            name="Value"
+            stroke="var(--primary)"
+            strokeWidth={1.75}
+            fill="url(#trendFill)"
+            dot={{ r: 2, fill: "var(--primary)", fillOpacity: 0.55, strokeWidth: 0 }}
+            activeDot={{ r: 3.5, strokeWidth: 0 }}
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -144,7 +153,15 @@ export function LineTrend({ data, height = 200, suffix, max, className }: { data
           <XAxis dataKey="label" {...AXIS} minTickGap={24} />
           <YAxis {...AXIS} width={36} domain={max ? [0, max] : ["auto", "auto"]} />
           <Tooltip content={<ChartTooltip format={(v: number) => `${num(v)}${suffix ?? ""}`} />} />
-          <Line type="monotone" dataKey="value" name="Value" stroke="var(--chart-6)" strokeWidth={1.75} dot={false} activeDot={{ r: 3.5, strokeWidth: 0 }} />
+          <Line
+            type="monotone"
+            dataKey="value"
+            name="Value"
+            stroke="var(--chart-6)"
+            strokeWidth={1.75}
+            dot={{ r: 2, fill: "var(--chart-6)", fillOpacity: 0.55, strokeWidth: 0 }}
+            activeDot={{ r: 3.5, strokeWidth: 0 }}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>

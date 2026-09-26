@@ -55,7 +55,7 @@ export function simulatedToast(action: string, detail?: string) {
 /* ------------------------------------------------------------------ */
 
 /** Contact / navigation actions — simulated in the prototype. */
-export function ContactActions({ name }: { name: string }) {
+export function ContactActions({ name, hideMessage }: { name: string; hideMessage?: boolean }) {
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => simulatedToast("Opening navigation", "Route to the service address opened in your maps app.")} aria-label="Navigate to address">
@@ -64,9 +64,11 @@ export function ContactActions({ name }: { name: string }) {
       <Button variant="outline" size="sm" onClick={() => simulatedToast(`Calling ${name}`)} aria-label={`Call ${name}`}>
         <Phone className="h-3.5 w-3.5" strokeWidth={1.9} /> Call
       </Button>
-      <Button variant="outline" size="sm" onClick={() => simulatedToast(`Message thread with ${name}`)} aria-label={`Message ${name}`}>
-        <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.9} /> Message
-      </Button>
+      {!hideMessage && (
+        <Button variant="outline" size="sm" onClick={() => simulatedToast(`Message thread with ${name}`)} aria-label={`Message ${name}`}>
+          <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.9} /> Message
+        </Button>
+      )}
     </>
   );
 }
@@ -285,17 +287,17 @@ export function JobRowCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[13px] font-medium leading-snug">{booking.title}</p>
-          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-            <span className="tnum inline-flex items-center gap-1">
-              <Clock className="h-3 w-3" strokeWidth={1.9} aria-hidden />
+          <p className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs">
+            <span className="tnum inline-flex items-baseline gap-1 font-semibold text-foreground/85">
+              <Clock className="h-3 w-3 self-center" strokeWidth={1.9} aria-hidden />
               {dateTimeLabel(booking.scheduledAt)}
             </span>
-            <span className="tnum inline-flex items-center gap-1">
+            <span className="tnum inline-flex items-center gap-1 text-muted-foreground">
               <Timer className="h-3 w-3" strokeWidth={1.9} aria-hidden />
               {duration(booking.durationMin)}
             </span>
             {showCustomer && detail.data && (
-              <span className="inline-flex items-center gap-1">
+              <span className="inline-flex items-center gap-1 text-muted-foreground">
                 <MapPin className="h-3 w-3" strokeWidth={1.9} aria-hidden />
                 {detail.data.address.locality} · {detail.data.customer.name}
               </span>

@@ -5,6 +5,22 @@ import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 import { BrandWordmark } from "./brand";
 
+/** Human explanation for live nav badges — shown as tooltip / aria-label. */
+const BADGE_HINTS: Record<string, string> = {
+  offers: "{n} new job offer(s) matched to you",
+  notifications: "{n} unread notification(s)",
+  verifications: "{n} worker application(s) awaiting review",
+  disputes: "{n} open dispute / support case(s)",
+  unvoted: "{n} governance proposal(s) awaiting your vote",
+};
+
+/** Detail routes → their parent nav section, so deep screens keep sidebar context. */
+const PARENT_ROUTE: Record<string, string> = {
+  "customer-booking": "customer-bookings",
+  "customer-worker": "customer-discover",
+  "worker-job": "worker-jobs",
+};
+
 export function Sidebar({
   role,
   badges,
@@ -33,7 +49,7 @@ export function Sidebar({
             <p className="micro-label px-2 pb-2">{group.label}</p>
             <ul className="space-y-0.5">
               {group.items.map((item) => {
-                const active = route.name === item.route;
+                const active = route.name === item.route || PARENT_ROUTE[route.name] === item.route;
                 const badge = item.badgeKey ? badges[item.badgeKey] ?? 0 : 0;
                 return (
                   <li key={item.route}>
@@ -43,17 +59,21 @@ export function Sidebar({
                         onNavigate?.();
                       }}
                       aria-current={active ? "page" : undefined}
+                      title={badge > 0 && item.badgeKey ? BADGE_HINTS[item.badgeKey]?.replace("{n}", String(badge)) : undefined}
                       className={cn(
-                        "group flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13.5px] font-medium transition-colors",
+                        "group flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13.5px] transition-colors",
                         active
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground/75 hover:bg-muted hover:text-foreground",
+                          ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_0_var(--sidebar-primary)]"
+                          : "font-medium text-sidebar-foreground/75 hover:bg-muted hover:text-foreground",
                       )}
                     >
                       <item.icon className={cn("h-[17px] w-[17px] shrink-0", active ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} strokeWidth={1.9} />
                       <span className="flex-1 truncate text-left">{item.label}</span>
                       {badge > 0 && (
-                        <span className="tnum inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-semibold text-primary-foreground">
+                        <span
+                          className="tnum inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10.5px] font-semibold text-primary-foreground"
+                          aria-label={item.badgeKey ? BADGE_HINTS[item.badgeKey]?.replace("{n}", String(badge)) : undefined}
+                        >
                           {badge > 9 ? "9+" : badge}
                         </span>
                       )}

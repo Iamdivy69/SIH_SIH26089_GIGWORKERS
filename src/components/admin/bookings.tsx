@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Download, Search } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -32,6 +34,7 @@ import {
 import type { Column } from "@/components/shared";
 import { FineNote } from "./ui";
 import { useAdminBookings } from "@/hooks/use-api";
+import { csvDateStamp, downloadCsv } from "@/lib/csv";
 import { dateShort, dateTimeLabel, duration, money, num, relativeTime } from "@/lib/format";
 import type { Booking, BookingStatus } from "@/lib/types";
 
@@ -70,6 +73,30 @@ export function AdminBookingsScreen() {
 
   const totalValue = rows.reduce((a, r) => a + r.booking.price.customerTotal, 0);
 
+  const exportCsv = () => {
+    downloadCsv(
+      `sahyog-bookings-${csvDateStamp()}`,
+      ["Reference", "Status", "Service", "Category", "Customer", "Member", "Scheduled", "Payment", "Service charge", "Welfare", "Platform fee", "GST", "Customer total", "Worker net"],
+      rows.map((r) => [
+        r.booking.reference,
+        statusLabel(r.booking.status),
+        r.booking.title,
+        r.booking.categoryId,
+        r.customerName,
+        r.workerName,
+        dateTimeLabel(r.booking.scheduledAt),
+        r.booking.paymentStatus,
+        r.booking.price.serviceCharge,
+        r.booking.price.welfareContribution,
+        r.booking.price.platformFee,
+        r.booking.price.gst,
+        r.booking.price.customerTotal,
+        r.booking.price.workerNetPayout,
+      ]),
+    );
+    toast.success("Bookings CSV exported", { description: `${rows.length} rows · reflects the current status filter and search.` });
+  };
+
   if (bookings.isError) {
     return (
       <>
@@ -90,21 +117,26 @@ export function AdminBookingsScreen() {
             : `${num(rows.length)} bookings shown · ${money(totalValue)} customer value. Full lifecycle state, payment status and pricing breakdown for every service request.`
         }
         actions={
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger className="h-9 w-[190px] text-[13px]" aria-label="Filter by status">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-[13px]">
-                All statuses
-              </SelectItem>
-              {STATUS_OPTIONS.map((s) => (
-                <SelectItem key={s} value={s} className="text-[13px]">
-                  {statusLabel(s)}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={exportCsv} disabled={rows.length === 0}>
+              <Download className="h-3.5 w-3.5" strokeWidth={1.9} /> Export CSV
+            </Button>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9 w-[190px] text-[13px]" aria-label="Filter by status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-[13px]">
+                  All statuses
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                {STATUS_OPTIONS.map((s) => (
+                  <SelectItem key={s} value={s} className="text-[13px]">
+                    {statusLabel(s)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
       />
 

@@ -8,6 +8,7 @@ import type {
   AdminOverview,
   AppNotification,
   Booking,
+  BookingMessage,
   CustomerOverview,
   FinanceOverview,
   ForecastData,
@@ -168,6 +169,19 @@ export interface BookingDetail {
 
 export function useBooking(id: string | undefined) {
   return useQuery({ queryKey: ["booking", id], queryFn: () => apiClient.get<BookingDetail>(`bookings/${id}`), enabled: Boolean(id) });
+}
+
+/** Send a message in the booking-scoped customer↔worker thread. */
+export function useSendMessage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, text }: { id: string; text: string }) => apiClient.post<{ message: BookingMessage }>(`bookings/${id}/messages`, { text }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+    onError: (err) => toast.error("Message not sent", { description: err instanceof Error ? err.message : undefined }),
+  });
 }
 
 export function useCancelBooking() {

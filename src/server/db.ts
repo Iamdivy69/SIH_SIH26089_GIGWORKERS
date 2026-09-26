@@ -2,6 +2,7 @@ import type {
   AppNotification,
   AuditEntry,
   Booking,
+  BookingMessage,
   Customer,
   GovernanceData,
   GovernanceProposal,
@@ -62,7 +63,10 @@ interface Store {
   counters: { booking: number; ticket: number; claim: number; notification: number; audit: number };
 }
 
-const globalRef = globalThis as unknown as { __sahyogStore?: Store };
+const globalRef = globalThis as unknown as { __sahyogStore?: Store; __sahyogSeedVersion?: number };
+
+/** Bump whenever seed data changes — a stale store from a previous HMR cycle reseeds automatically. */
+const SEED_VERSION = 5;
 
 function seedStore(): Store {
   const store: Store = {
@@ -144,8 +148,9 @@ function seedStore(): Store {
 }
 
 export function getStore(): Store {
-  if (!globalRef.__sahyogStore) {
+  if (!globalRef.__sahyogStore || globalRef.__sahyogSeedVersion !== SEED_VERSION) {
     globalRef.__sahyogStore = seedStore();
+    globalRef.__sahyogSeedVersion = SEED_VERSION;
   }
   return globalRef.__sahyogStore;
 }
@@ -191,6 +196,33 @@ export function workerById(id: string) {
 }
 export function bookingById(id: string) {
   return getStore().bookings.find((b) => b.id === id);
+}
+
+/** Append a message to the booking-scoped customer↔worker thread. */
+export function addBookingMessage(
+  booking: Booking,
+  author: { id: string; role: "customer" | "worker"; name: string },
+  text: string,
+): BookingMessage {
+  const message: BookingMessage = {
+    id: `msg-${booking.id}-${(booking.messages ?? []).length + 1}`,
+    authorRole: author.role,
+    authorName: author.name,
+    text: text.trim(),
+    at: new Date().toISOString(),
+  };
+  booking.messages = [...(booking.messages ?? []), message];
+
+  /* notify the other party */
+  const recipient = author.role === "customer" ? booking.workerId : booking.customerId;
+  const routeName = author.role === "customer" ? "worker-job" : "customer-booking";
+  notify(recipient, {
+    kind: "booking",
+    title: `New message from ${author.name}`,
+    body: `${booking.title} — “${text.trim().slice(0, 70)}${text.trim().length > 70 ? "…" : ""}”`,
+    route: { name: routeName, params: { bookingId: booking.id } },
+  });
+  return message;
 }
 
 export function addBooking(input: {

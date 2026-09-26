@@ -27,6 +27,7 @@ import {
 } from "@/components/shared";
 import { useBookings, useCustomerOverview } from "@/hooks/use-api";
 import { useAppStore } from "@/store/app-store";
+import { csvDateStamp, downloadCsv } from "@/lib/csv";
 import { dateShort, dateTimeLabel, money, num } from "@/lib/format";
 import type { Booking } from "@/lib/types";
 import { addressById, invoiceNo } from "../constants";
@@ -51,6 +52,27 @@ export function PaymentsScreen() {
   const avgBooking = completed.length
     ? completed.reduce((a, b) => a + b.price.customerTotal, 0) / completed.length
     : 0;
+
+  const exportStatement = () => {
+    downloadCsv(
+      `sahyog-statement-ananya-${csvDateStamp()}`,
+      ["Invoice no.", "Reference", "Date", "Service", "Member", "Service charge", "Welfare contribution", "Platform fee", "GST", "Total", "Payment status"],
+      invoices.map((b) => [
+        invoiceNo(b.id),
+        b.reference,
+        dateShort(b.scheduledAt),
+        b.title,
+        workers.get(b.workerId)?.name ?? "Member",
+        b.price.serviceCharge,
+        b.price.welfareContribution,
+        b.price.platformFee,
+        b.price.gst,
+        b.price.customerTotal,
+        b.paymentStatus,
+      ]),
+    );
+    toast.success("Statement downloaded", { description: `${invoices.length} invoices · opens in any spreadsheet app.` });
+  };
 
   const columns: Column<Booking>[] = [
     {
@@ -94,6 +116,11 @@ export function PaymentsScreen() {
         eyebrow="My activity"
         title="Payments & invoices"
         description="Every rupee of every booking, itemised. Payment is held at booking and settles to your member only after you confirm completion."
+        actions={
+          <Button variant="outline" size="sm" onClick={exportStatement} disabled={invoices.length === 0}>
+            <Download className="h-3.5 w-3.5" strokeWidth={1.9} /> Statement (CSV)
+          </Button>
+        }
       />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
@@ -232,7 +259,28 @@ function InvoiceDialog({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => toast("Invoice download started", { description: `${invoiceNo(booking.id)}.pdf — simulated in this prototype.` })}
+            onClick={() => {
+              downloadCsv(
+                `invoice-${invoiceNo(booking.id).toLowerCase()}`,
+                ["Sahyog Services Cooperative — tax invoice (simulated)"],
+                [
+                  ["Invoice no.", invoiceNo(booking.id)],
+                  ["Booking reference", booking.reference],
+                  ["Issued", dateShort(booking.scheduledAt)],
+                  ["Billed to", "Ananya Deshpande"],
+                  ["Service", booking.title],
+                  ["Member", workerName ?? "Member"],
+                  [],
+                  ["Line item", "Amount (INR)"],
+                  ["Service charge", booking.price.serviceCharge],
+                  ["Welfare contribution (to member's fund)", booking.price.welfareContribution],
+                  ["Platform processing fee", booking.price.platformFee],
+                  ["GST @ 18% on processing fee", booking.price.gst],
+                  ["Total", booking.price.customerTotal],
+                ],
+              );
+              toast.success("Invoice downloaded", { description: `${invoiceNo(booking.id)}.csv — line-item breakdown as shown above.` });
+            }}
           >
             <Download className="h-3.5 w-3.5" strokeWidth={1.9} /> Download invoice
           </Button>

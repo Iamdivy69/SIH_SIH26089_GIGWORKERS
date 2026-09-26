@@ -14,3 +14,4 @@ export { StatusTimeline } from "./status-timeline";
 export { TrendAreaChart, CompareBarChart, ValueBarChart, LineTrend, Spark, HBarList } from "./charts";
 export { EvidenceTile } from "./evidence-tile";
 export { AlertBanner } from "./alert-banner";
+export { BookingChat } from "./booking-chat";

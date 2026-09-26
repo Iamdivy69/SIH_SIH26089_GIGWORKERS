@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Ban, MessageSquare, Search, ShieldQuestion } from "lucide-react";
+import { Ban, Download, MessageSquare, Search, ShieldQuestion } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ import type { Column } from "@/components/shared";
 import { CATEGORY_NAMES, FilterChips, KpiStrip } from "./ui";
 import { useAdminWorkers } from "@/hooks/use-api";
 import { useAppStore } from "@/store/app-store";
+import { csvDateStamp, downloadCsv } from "@/lib/csv";
 import { dateFull, dateShort, money, num, pctLabel, ratingLabel } from "@/lib/format";
 import type { Worker } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -85,6 +86,30 @@ export function AdminWorkersScreen() {
   const avgRating = verifiedItems.length ? verifiedItems.reduce((a, w) => a + w.rating, 0) / verifiedItems.length : 0;
   const weekEarnings = items.reduce((a, w) => a + w.weekEarnings, 0);
 
+  const exportCsv = () => {
+    downloadCsv(
+      `sahyog-members-${csvDateStamp()}`,
+      ["Member ID", "Name", "Trade", "Category", "Locality", "Status", "Rating", "Reviews", "Completed jobs", "Experience (yrs)", "On-time %", "Week jobs", "Week earnings", "Member since"],
+      filtered.map((w) => [
+        w.cooperativeMemberId,
+        w.name,
+        w.tradeTitle,
+        CATEGORY_NAMES[w.category] ?? w.category,
+        `${w.locality}, ${w.city}`,
+        w.status,
+        w.rating.toFixed(1),
+        w.reviewCount,
+        w.completedJobs,
+        w.experienceYears,
+        w.onTimeRate,
+        w.weekJobs,
+        w.weekEarnings,
+        dateShort(w.memberSince),
+      ]),
+    );
+    toast.success("Member register exported", { description: `${filtered.length} rows · reflects the current filter and search.` });
+  };
+
   if (workers.isError) {
     return (
       <>
@@ -102,6 +127,11 @@ export function AdminWorkersScreen() {
         eyebrow="Workforce · member register"
         title="Members"
         description="Every worker of the cooperative — onboarding status, quality signals and weekly activity. Click a row for the full member file."
+        actions={
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={loading || filtered.length === 0}>
+            <Download className="h-3.5 w-3.5" strokeWidth={1.9} /> Export CSV
+          </Button>
+        }
       />
 
       {loading ? (

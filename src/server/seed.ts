@@ -598,6 +598,8 @@ interface BookingSeed {
   reviewTags?: string[];
   matchScore?: number;
   customerNotes?: string;
+  /** Seeded booking-scoped chat — hours offset relative to the scheduled slot (negative = before the visit). */
+  messages?: { role: "customer" | "worker"; text: string; hoursOffset: number }[];
 }
 
 const seeds: BookingSeed[] = [
@@ -607,7 +609,10 @@ const seeds: BookingSeed[] = [
   { id: "bk-103", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c3", title: "Kitchen deep clean", description: "Degreasing after heavy festive cooking.", when: daysAgo(12, 11, 0), status: "completed", rating: 5, reviewComment: "Second time booking Meena. Consistent quality and very professional about moving things back.", reviewTags: ["Repeat visit", "Professional"], matchScore: 97 },
   { id: "bk-104", customerId: "c-ananya", workerId: "w-vikas", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "Study room fan making grinding noise.", when: daysAgo(8, 18, 0), status: "completed", rating: 4, reviewComment: "Fixed the bearing issue. Took a little longer than expected but explained the problem clearly.", reviewTags: ["Clear explanation"], matchScore: 88 },
   /* --- Ananya upcoming --- */
-  { id: "bk-105", customerId: "c-ananya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Terrace garden upkeep — pruning, watering, check the soil in planters.", when: daysAhead(1, 10, 0), status: "confirmed", matchScore: 92, customerNotes: "Please ring the doorbell twice; the intercom is being repaired." },
+  { id: "bk-105", customerId: "c-ananya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Terrace garden upkeep — pruning, watering, check the soil in planters.", when: daysAhead(1, 10, 0), status: "confirmed", matchScore: 92, customerNotes: "Please ring the doorbell twice; the intercom is being repaired.", messages: [
+    { role: "customer", text: "Hi Arjun — the terrace tap drips a little; could you check the planter drainage while you're here?", hoursOffset: -16 },
+    { role: "worker", text: "Yes, I'll bring a spare washer and check the drainage slope. I'll also trim the ficus hedge as part of the visit.", hoursOffset: -13 },
+  ] },
   /* --- Other customers: completed history (past 35 days) --- */
   { id: "bk-201", customerId: "c-rohan", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e3", title: "Light fixture & wiring repair", description: "Bedroom lights flickering; two holders need replacement.", when: daysAgo(31, 17, 30), status: "completed", rating: 5, reviewComment: "Priya arrived with all parts, finished in an hour and gave a written safety summary. Rare professionalism.", reviewTags: ["Professional", "Punctual", "Skilled"], matchScore: 95 },
   { id: "bk-202", customerId: "c-sneha", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c4", title: "Bathroom deep clean (2 baths)", description: "Both bathrooms need descaling before guests arrive.", when: daysAgo(30, 9, 30), status: "completed", rating: 4, reviewComment: "Good work. The second bathroom could have been detailed a bit more, but overall satisfied.", reviewTags: ["Tidy"], matchScore: 91 },
@@ -634,9 +639,16 @@ const seeds: BookingSeed[] = [
   { id: "bk-303", customerId: "c-sameer", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e3", title: "Light fixture & wiring repair", description: "Three holders + a flickering tube light.", when: daysAgo(1, 18, 0), status: "completed", rating: 5, reviewComment: "Punctual, neat, and priced as quoted.", reviewTags: ["Punctual", "Fair pricing"], matchScore: 95 },
   { id: "bk-304", customerId: "c-rohan", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e2", title: "Switchboard & socket repair", description: "Replace old switchboard in living room.", when: daysAgo(0, 10, 30), status: "completed", rating: 5, reviewComment: "Labelled every point and tested each one. Excellent as always.", reviewTags: ["Professional", "Tidy"], matchScore: 96 },
   /* --- Priya: awaiting customer confirmation (pending settlement) --- */
-  { id: "bk-305", customerId: "c-aditya", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e6", title: "General electrical repair", description: "Corridor lights not turning on; suspected wiring fault.", when: daysAgo(1, 8, 0), status: "awaiting_confirmation", matchScore: 91 },
+  { id: "bk-305", customerId: "c-aditya", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e6", title: "General electrical repair", description: "Corridor lights not turning on; suspected wiring fault.", when: daysAgo(1, 8, 0), status: "awaiting_confirmation", matchScore: 91, messages: [
+    { role: "customer", text: "Corridor lights are working now — thank you for clearing up the wiring so neatly.", hoursOffset: 3 },
+    { role: "worker", text: "Glad it's sorted! If the flicker returns within 30 days, message here and I'll visit free of charge under the service warranty.", hoursOffset: 5 },
+  ] },
   /* --- Priya upcoming --- */
-  { id: "bk-306", customerId: "c-sneha", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e4", title: "Full wiring safety inspection", description: "Pre-monsoon inspection for 2 BHK.", when: daysAhead(1, 11, 0), status: "confirmed", matchScore: 96 },
+  { id: "bk-306", customerId: "c-sneha", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e4", title: "Full wiring safety inspection", description: "Pre-monsoon inspection for 2 BHK.", when: daysAhead(1, 11, 0), status: "confirmed", matchScore: 96, messages: [
+    { role: "customer", text: "Hi Priya — the inspection is for a 2 BHK, 12-year-old building. Will you need the mains power off for long?", hoursOffset: -15 },
+    { role: "worker", text: "Only about 30–40 minutes per circuit, and one room at a time so your fridge stays on. I'll bring the earth-resistance tester.", hoursOffset: -13 },
+    { role: "customer", text: "Perfect. The society gate code is 1947# — please call if it doesn't work.", hoursOffset: -2 },
+  ] },
   /* --- Other workers today (admin ops numbers) --- */
   { id: "bk-401", customerId: "c-sneha", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c3", title: "Kitchen deep clean", description: "Festive season kitchen refresh.", when: daysAgo(0, new Date().getHours() >= 12 ? new Date().getHours() - 2 : 11, 0), status: "in_progress", matchScore: 92 },
   { id: "bk-402", customerId: "c-rohan", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p1", title: "Tap, leak & pipe repair", description: "Terrace tap leaking.", when: daysAgo(0, 8, 30), status: "completed", rating: 5, reviewComment: "Quick fix before office hours. Appreciated.", reviewTags: ["Punctual"], matchScore: 93 },
@@ -735,6 +747,22 @@ function buildBooking(s: BookingSeed): { booking: Booking; review?: Review; tran
     evidence: [],
     timeline: [{ id: `ev-${s.id}-0`, at: iso(createdAt), label: "Request created", detail: `${customer.name} · ${s.title}`, by: customer.name }],
     customerNotes: s.customerNotes,
+    messages: s.messages && (() => {
+      /* keep the thread in the past no matter when the demo runs: if the newest
+         seeded message would land in the future, shift the whole thread back
+         uniformly — spacing and ordering are preserved. */
+      const times = s.messages!.map((m) => s.when.getTime() + m.hoursOffset * HOUR);
+      const newest = Math.max(...times);
+      const ceiling = Date.now() - 30 * 60000;
+      const shift = newest > ceiling ? newest - ceiling : 0;
+      return s.messages!.map((m, i) => ({
+        id: `msg-${s.id}-${i}`,
+        authorRole: m.role,
+        authorName: m.role === "customer" ? customer.name : worker.name,
+        text: m.text,
+        at: iso(new Date(times[i] - shift)),
+      }));
+    })(),
   };
 
   const review: Review | undefined = s.rating

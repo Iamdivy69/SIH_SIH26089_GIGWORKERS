@@ -68,3 +68,47 @@ Stage Summary:
 - The in-memory store resets on dev-server restart (seed state); the demo booking can be recreated in ~60s via the customer UI or the curl sequence documented above.
 - Known acceptable limitations: recharts logs benign "width(0)" warnings while charts mount inside hidden tabs; notification "polling" is a 20s refetchInterval + mutation invalidation (no websockets — deliberate, single-browser demo); language selector is display-only (roadmap states).
 - Suggested next steps for the 15-min review cycle: visual polish per VLM notes (icon chips on discovery filters, stronger status-banner contrast on execution screen), real DB behind the same API contract (Prisma), websocket mini-service for cross-device demo, dark-mode pass.
+
+---
+
+Task ID: 4
+Agent: main (Z.ai Code) — QA round + styling detail pass + booking chat + CSV exports
+Task: Assess project status, browser-QA all routes and the end-to-end scenario, fix defects found, then advance the prototype with (a) a mandatory styling-detail pass per VLM review and (b) new functionality (booking-scoped chat, CSV exports).
+
+Work Log:
+- **QA sweep**: all 29 hash routes across the three roles re-verified via agent-browser — zero page errors, zero console errors/warnings (excluding benign recharts width logs). `bun run lint` clean. Dev server healthy (~240ms API responses).
+- **End-to-end lifecycle re-verified server-side**: book (svc-e6, Priya 92% with all-Excellent factors) → accept → en_route/arrived/in_progress → checklist 5/5 + before/after evidence → complete → awaiting_confirmation → confirm → completed + payment settled → earnings transaction created (gross 824 → net 792 + welfare 24) → welfare contribution appended. All reflections correct.
+- **VLM design review** (fresh screenshots, glm-5v-turbo): found (1) admin KPI labels/subs aggressively truncated at 8 columns, (2) sidebar active state too weak, (3) worker "Today's plan" metadata all same weight, (4) discovery filter grouping unclear, (5) chart lines lacked data-point markers, (6) nav badges had no context.
+- **Styling fixes**:
+  - `admin/ui.tsx` KpiStrip: labels wrap (no truncate), subs `line-clamp-2`; 8-cell strips now `2xl:grid-cols-8` instead of `xl:` (4-col two-row until 1536px) — labels+subs fully readable at 1440px (VLM re-verified).
+  - `platform/sidebar.tsx`: active item gets `font-semibold` + 3px inset left accent bar (`--sidebar-primary`); `--sidebar-accent` deepened to `oklch(0.922 0.028 155)`; badges get tooltip + aria-label via `BADGE_HINTS`; `PARENT_ROUTE` map keeps nav context on detail screens (worker-job → Job opportunities, customer-booking → Bookings, customer-worker → Find services).
+  - `worker/parts.tsx` JobRowCard: scheduled time now semibold foreground (was same-weight muted) — fixes the "wall of text" Today's plan reading order.
+  - `customer/screens/discover-screen.tsx`: search input h-10 with larger padding, "RefINE results" micro-label groups the filter row.
+  - `shared/charts.tsx`: static r=2 dots (55% opacity) on TrendAreaChart + LineTrend so values are scannable without hover.
+- **New feature — booking-scoped chat** (customer ↔ worker):
+  - `lib/types.ts`: `BookingMessage` (authorRole/authorName/text/at), `Booking.messages?`.
+  - `server/db.ts`: `addBookingMessage()` — appends, notifies the counterparty with deep-link route (customer-booking / worker-job).
+  - `server/api.ts`: `POST /bookings/:id/messages` — author from `x-demo-user`, ownership enforced (only the booking's customer/worker), length validation 1–500.
+  - `hooks/use-api.ts`: `useSendMessage` mutation (invalidates booking + notifications).
+  - `shared/booking-chat.tsx`: `BookingChat` component — bubbles aligned by viewerRole (own = green-tinted right), author micro-labels, relative timestamps, role-specific quick-reply chips, composer with 500-char cap, privacy note ("visible to support desk if a dispute is raised"). Open while booking is pre-completion; read-only after.
+  - Wired into customer booking detail (replaces dead "Message" toast → scrolls to thread) and worker execution screen (header Message button scrolls to thread; `ContactActions` gained `hideMessage` prop for that screen).
+  - Seeded threads: bk-105 (Ananya↔Arjun, terrace tap), bk-305 (Aditya↔Priya, warranty follow-up), bk-306 (Sneha↔Priya, mains-power question + gate code).
+- **New feature — CSV exports** (`lib/csv.ts`: `downloadCsv` + `csvDateStamp`, BOM + quoting, numbers as plain values):
+  - Admin bookings: "Export CSV" — 14 columns incl. full price breakdown, respects status filter + search.
+  - Admin workers: "Export CSV" — 14-column member register, respects filter + search.
+  - Customer payments: "Statement (CSV)" (11 columns, all invoices) + per-invoice download inside the invoice dialog (was a simulated toast → now a real file with line items).
+  - Verified via agent-browser `download`: 61-row bookings CSV with correct quoting.
+- **Robustness fixes**:
+  - `server/db.ts`: `SEED_VERSION` guard on `getStore()` — bumping the version reseeds the in-memory store without a dev-server restart (stale HMR state no longer possible after seed edits). Documented in CONTRACT.md §8.
+  - `lib/format.ts` `relativeTime()`: future timestamps render "in X" not "X ago".
+  - `server/seed.ts`: seeded chat times are offsets from the scheduled slot with whole-thread past-clamping (spacing/order preserved) — threads read naturally at any hour the demo runs.
+- **Bug found & fixed during QA**: my earlier sidebar MultiEdit had duplicated `BADGE_HINTS` (const redeclare) — lint didn't flag it but Fast Refresh did; deduplicated.
+- **Final verification**: lint clean; all 29 routes zero-error; chat verified cross-role in the browser (customer sends → worker sees within a refetch; worker sends via native click + Enter; access control blocks third parties with clear errors); mobile 375px no horizontal overflow on chat/admin/discover screens; VLM re-review confirms KPI readability, sidebar contrast, no defects. Store reset to clean seed (SEED_VERSION 5).
+- README + docs/CONTRACT.md updated (chat, CSV, seed versioning, parent-route map).
+
+Stage Summary:
+- Platform now has booking-scoped customer↔worker messaging with notifications and access control, and real CSV exports on both sides of the marketplace — both demoable in the SIH flow.
+- Design system tightened: no truncated KPI labels anywhere, sidebar active state unmistakable (bg + accent bar + semibold + parent-route context), chart values scannable.
+- Engineering: seed changes now propagate via SEED_VERSION (no restarts), future-safe relative times.
+- Suggested next steps for a future round: dedicated notification center page with day grouping + filters; admin finance CSV export; recurring bookings; websocket mini-service for two-browser demos (currently same-browser role switching); dark-mode pass.
+

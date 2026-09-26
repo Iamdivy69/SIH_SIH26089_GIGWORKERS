@@ -10,6 +10,7 @@ import { computePrice, DEFAULT_RATES } from "@/lib/rates";
 import { recommend } from "./matching";
 import {
   addBooking,
+  addBookingMessage,
   audit,
   bookingById,
   categories,
@@ -287,6 +288,26 @@ route("GET", "/bookings/:id", (_req, params) => {
   const customer = customerById(booking.customerId);
   const review = store.reviews.find((r) => r.bookingId === booking.id) ?? null;
   return { booking, worker, customer, address: customer.addresses.find((a) => a.id === booking.addressId) ?? customer.addresses[0], review };
+});
+
+route("POST", "/bookings/:id/messages", (_req, params, body, user) => {
+  const booking = bookingById(params.id);
+  if (!booking) throw new Error("Booking not found");
+  const text = String(body.text ?? "").trim();
+  if (!text) throw new Error("Message cannot be empty");
+  if (text.length > 500) throw new Error("Message is too long (max 500 characters)");
+
+  const isWorker = user.startsWith("w-");
+  const isCustomer = user.startsWith("c-");
+  if (!isWorker && !isCustomer) throw new Error("Only the customer or the assigned member can message on this booking");
+  if (isWorker && user !== booking.workerId) throw new Error("This booking is assigned to another member");
+  if (isCustomer && user !== booking.customerId) throw new Error("This booking belongs to another customer");
+
+  const author = isWorker
+    ? { id: user, role: "worker" as const, name: workerById(user).name }
+    : { id: user, role: "customer" as const, name: customerById(user).name };
+  const message = addBookingMessage(booking, author, text);
+  return { message, messages: booking.messages };
 });
 
 route("POST", "/bookings/:id/cancel", (_req, params, body) => {

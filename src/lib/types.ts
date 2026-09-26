@@ -159,6 +159,15 @@ export interface BookingEvent {
   by?: string;
 }
 
+/** Message in the booking-scoped thread between the customer and the worker. */
+export interface BookingMessage {
+  id: string;
+  authorRole: "customer" | "worker";
+  authorName: string;
+  text: string;
+  at: string;
+}
+
 export interface Booking {
   id: string;
   reference: string;
@@ -179,6 +188,7 @@ export interface Booking {
   checklist: ChecklistItem[];
   evidence: EvidencePhoto[];
   timeline: BookingEvent[];
+  messages?: BookingMessage[];
   customerNotes?: string;
   cancellationReason?: string;
 }
