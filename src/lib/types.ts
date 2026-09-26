@@ -436,6 +436,104 @@ export interface SkillCourse {
   creditValue: number;
 }
 
+/* ------------------------------------------------------------------ */
+/* Training & upskilling hub (cooperative-funded member training)      */
+/* ------------------------------------------------------------------ */
+
+/** Course category — one of the co-op's service trades, or "professional" for
+ *  cross-trade skills (communication, payments, safety practice). */
+export type TrainingCategoryId = ServiceCategoryId | "professional";
+
+export interface TrainingCourse {
+  id: string;
+  title: string;
+  category: TrainingCategoryId;
+  /** 1–2 sentences, plain language, what the member will be able to do. */
+  description: string;
+  /** Total learning hours across all modules. */
+  durationHrs: number;
+  level: "foundation" | "advanced";
+  format: "in-person" | "online" | "hybrid";
+  /** Instructor with credentials, e.g. "Vikram Salunkhe — ITI Pune, 18 yrs". */
+  instructor: string;
+  /** 2–4 concrete skills the course certifies. */
+  skills: string[];
+  moduleCount: number;
+  /** Next cohort start; undefined = rolling/online access. */
+  nextCohortAt?: string;
+  seatsLeft?: number;
+}
+
+export interface TrainingEnrollment {
+  id: string;
+  courseId: string;
+  workerId: string;
+  status: "in_progress" | "completed";
+  /** 0–100, advanced one module at a time (100/moduleCount per module). */
+  progressPct: number;
+  enrolledAt: string;
+  completedAt?: string;
+  /** SCT-2025-### — issued when the course is completed at 100%. */
+  certificateId?: string;
+  /** Final assessment score out of 100. */
+  score?: number;
+}
+
+/** A completed, certificate-bearing enrollment joined with its course. */
+export interface TrainingCertificate {
+  courseId: string;
+  courseTitle: string;
+  certificateId: string;
+  completedAt: string;
+  score?: number;
+  skills: string[];
+  level: TrainingCourse["level"];
+  hours: number;
+  category: TrainingCategoryId;
+}
+
+export interface WorkerTrainingData {
+  courses: TrainingCourse[];
+  myEnrollments: TrainingEnrollment[];
+  certificates: TrainingCertificate[];
+  stats: {
+    completedCount: number;
+    inProgress: number;
+    certificatesEarned: number;
+    /** Learning hours earned, including partial credit for in-progress courses. */
+    hoursCompleted: number;
+    /** Earliest upcoming cohort across the catalogue. */
+    nextCohortAt?: string;
+  };
+}
+
+export interface AdminTrainingData {
+  coverage: {
+    membersWithTraining: number;
+    totalMembers: number;
+    activeEnrollments: number;
+    completionsThisMonth: number;
+    certificatesIssued: number;
+  };
+  byCourse: {
+    courseId: string;
+    title: string;
+    level: TrainingCourse["level"];
+    category: TrainingCategoryId;
+    enrolled: number;
+    completed: number;
+    completionRate: number;
+  }[];
+  byMember: {
+    workerId: string;
+    name: string;
+    trade: string;
+    certificates: number;
+    active: number;
+    hoursCompleted: number;
+  }[];
+}
+
 export interface PlatformPolicy {
   commissionPct: number;
   welfarePct: number;

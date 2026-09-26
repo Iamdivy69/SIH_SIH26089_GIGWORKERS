@@ -198,7 +198,7 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                       <Stepper current={step} times={times} lastLabel={booking.status === "awaiting_confirmation" ? "Awaiting customer" : undefined} />
 
                       {booking.status === "confirmed" && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-[oklch(0.965_0.018_155)] px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-primary-muted px-4 py-3">
                           <p className="text-[13px] text-muted-foreground">Headed out? Let {customer.name.split(" ")[0]} know you're on the way.</p>
                           <Button size="sm" onClick={() => statusMutation.mutate({ id: booking.id, status: "en_route" })} disabled={statusMutation.isPending}>
                             I'm on the way
@@ -206,7 +206,7 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                         </div>
                       )}
                       {booking.status === "en_route" && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-[oklch(0.965_0.018_155)] px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-primary-muted px-4 py-3">
                           <p className="text-[13px] text-muted-foreground">Customer notified that you're on the way. Mark arrival at {" "}
                             {address.locality}.
                           </p>
@@ -216,7 +216,7 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                         </div>
                       )}
                       {booking.status === "arrived" && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-[oklch(0.965_0.018_155)] px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-l-[3px] border-l-primary/60 bg-primary-muted px-4 py-3">
                           <p className="text-[13px] text-muted-foreground">Capture the before photo, then start the service and checklist.</p>
                           <Button size="sm" onClick={() => statusMutation.mutate({ id: booking.id, status: "in_progress" })} disabled={statusMutation.isPending}>
                             Start service
@@ -244,7 +244,7 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                             <RequirementLine done={hasAfter}>After-service photo</RequirementLine>
                           </ul>
                           {allDone && (
-                            <p className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-[oklch(0.45_0.10_155)]">
+                            <p className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-success-deep">
                               <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={1.9} />
                               All requirements met — ready to complete.
                             </p>
@@ -259,12 +259,12 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                         />
                       )}
                       {booking.status === "completed" && (
-                        <div className="rounded-md border border-[oklch(0.88_0.05_155)] bg-[oklch(0.965_0.02_155)] px-4 py-3.5">
-                          <p className="flex items-center gap-2 text-[13px] font-medium text-[oklch(0.40_0.09_155)]">
+                        <div className="rounded-md border border-success/40 bg-primary-muted px-4 py-3.5">
+                          <p className="flex items-center gap-2 text-[13px] font-medium text-success-deep">
                             <CheckCircle2 className="h-4 w-4" strokeWidth={1.9} />
                             Payment settled — {money(booking.price.workerNetPayout)} added to your available balance
                           </p>
-                          <p className="mt-1 text-xs leading-relaxed text-[oklch(0.40_0.09_155)]/80">
+                          <p className="mt-1 text-xs leading-relaxed text-success-deep/80">
                             Plus {money(booking.price.workerWelfareCredit)} credited to your welfare fund. Full breakdown in Earnings.
                           </p>
                         </div>
@@ -402,16 +402,16 @@ export function WorkerJobScreen({ bookingId }: { bookingId: string }) {
                       <p className="max-w-[170px] text-right text-xs leading-relaxed text-muted-foreground">{paymentNote}</p>
                     </div>
                     {booking.recurrence && (
-                      <div className="rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] p-3">
+                      <div className="rounded-md border border-warning/40 bg-warning-muted p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-[13px] font-semibold text-[oklch(0.45_0.10_65)]">
+                          <p className="text-[13px] font-semibold text-warning-deep">
                             Standing order · {recurrenceLabel(booking.recurrence)}
                           </p>
-                          <span className="tnum text-[11px] font-medium text-[oklch(0.45_0.10_65)]/80">
+                          <span className="tnum text-[11px] font-medium text-warning-deep/80">
                             Occurrence {booking.occurrenceIndex ?? 1} of the series
                           </span>
                         </div>
-                        <p className="mt-1.5 text-xs leading-relaxed text-[oklch(0.45_0.10_65)]/90">
+                        <p className="mt-1.5 text-xs leading-relaxed text-warning-deep/90">
                           This customer books {booking.recurrence === "weekly" ? "weekly" : "monthly"} — reliable income builds your patronage
                           dividend. The next occurrence is scheduled automatically after each completed visit, with your priority.
                         </p>

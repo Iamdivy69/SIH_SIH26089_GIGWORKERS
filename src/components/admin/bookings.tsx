@@ -175,7 +175,7 @@ export function AdminBookingsScreen() {
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <span className="tnum text-xs font-medium">{r.booking.reference}</span>
                     {r.booking.recurrence && (
-                      <span className="inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]">
+                      <span className="inline-flex items-center gap-1 rounded-sm border border-warning/40 bg-warning-muted px-1.5 py-0.5 text-[11px] font-medium text-warning-deep">
                         <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
                         Standing · {r.booking.recurrence}
                       </span>
@@ -214,7 +214,7 @@ const bookingColumns: Column<BookingRow>[] = [
       <div className="min-w-0">
         <span className="tnum font-medium">{r.booking.reference}</span>
         {r.booking.recurrence && (
-          <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]">
+          <span className="mt-1 inline-flex items-center gap-1 rounded-sm border border-warning/40 bg-warning-muted px-1.5 py-0.5 text-[11px] font-medium text-warning-deep">
             <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
             Standing · {r.booking.recurrence}
           </span>
@@ -267,7 +267,7 @@ function BookingDetail({ row }: { row: BookingRow }) {
           <StatusBadge status={b.paymentStatus} />
           {b.matchScore !== undefined && <MatchBadge score={b.matchScore} />}
           {b.recurrence && (
-            <span className="inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]">
+            <span className="inline-flex items-center gap-1 rounded-sm border border-warning/40 bg-warning-muted px-1.5 py-0.5 text-[11px] font-medium text-warning-deep">
               <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
               Standing · {b.recurrence}
             </span>

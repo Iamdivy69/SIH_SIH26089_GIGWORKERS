@@ -171,7 +171,7 @@ export function AdminDisputesScreen() {
                           aria-current={active}
                           className={cn(
                             "w-full px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring",
-                            active && "bg-[oklch(0.965_0.02_155)]",
+                            active && "bg-primary-muted",
                           )}
                         >
                           <div className="flex items-center justify-between gap-2">
@@ -337,7 +337,7 @@ function CaseDetail({
               key={m.id}
               className={cn(
                 "rounded-md border px-3 py-2.5",
-                isStaffAuthor(m.author) ? "border-[oklch(0.88_0.03_155)]/60 bg-[oklch(0.975_0.014_155)]/60" : "bg-card",
+                isStaffAuthor(m.author) ? "border-primary/40/60 bg-primary-muted/60" : "bg-card",
               )}
             >
               <div className="flex items-center justify-between gap-2">
@@ -358,8 +358,8 @@ function CaseDetail({
       {ticket.status === "resolved" ? (
         <section aria-label="Resolution">
           <h4 className="micro-label mb-2">Resolution</h4>
-          <p className="rounded-md border border-[oklch(0.88_0.05_155)] bg-[oklch(0.965_0.014_155)] px-3 py-2.5 text-[13px] leading-relaxed">
-            <CheckCircle2 className="mr-1.5 inline h-3.5 w-3.5 text-[oklch(0.40_0.09_155)]" strokeWidth={1.9} />
+          <p className="rounded-md border border-success/40 bg-primary-muted px-3 py-2.5 text-[13px] leading-relaxed">
+            <CheckCircle2 className="mr-1.5 inline h-3.5 w-3.5 text-success-deep" strokeWidth={1.9} />
             {ticket.resolution ?? "Resolved by the support desk."}
           </p>
           <Button
@@ -443,7 +443,7 @@ function CaseDetail({
               className="text-[13px]"
             />
             {resolution.trim().length > 0 && !resolutionValid && (
-              <p className="text-xs text-[oklch(0.45_0.16_27)]">A little more detail please (min 20 characters) — this note is shared verbatim.</p>
+              <p className="text-xs text-destructive-deep">A little more detail please (min 20 characters) — this note is shared verbatim.</p>
             )}
           </div>
           <AlertDialogFooter>

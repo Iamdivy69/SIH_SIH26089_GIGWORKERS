@@ -197,9 +197,9 @@ function TicketDialog({ ticket, onClose }: { ticket: SupportTicket | null; onClo
               ))}
             </div>
             {ticket.resolution && (
-              <div className="rounded-md border border-[oklch(0.88_0.05_155)] bg-[oklch(0.965_0.02_155)] px-3.5 py-3">
-                <p className="text-[13px] font-medium text-[oklch(0.40_0.09_155)]">Resolution</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-[oklch(0.40_0.09_155)]/85">{ticket.resolution}</p>
+              <div className="rounded-md border border-success/40 bg-primary-muted px-3.5 py-3">
+                <p className="text-[13px] font-medium text-success-deep">Resolution</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-success-deep/85">{ticket.resolution}</p>
               </div>
             )}
           </div>

@@ -68,8 +68,8 @@ function TallyBar({ proposal }: { proposal: GovernanceProposal }) {
   const { approve, reject, abstain } = proposal.votes;
   const total = Math.max(1, approve + reject + abstain);
   const seg = [
-    { key: "approve", label: "Approve", value: approve, cls: "bg-[oklch(0.5_0.105_155)]" },
-    { key: "reject", label: "Reject", value: reject, cls: "bg-[oklch(0.525_0.185_27)]" },
+    { key: "approve", label: "Approve", value: approve, cls: "bg-success" },
+    { key: "reject", label: "Reject", value: reject, cls: "bg-destructive" },
     { key: "abstain", label: "Abstain", value: abstain, cls: "bg-muted-foreground/50" },
   ];
   return (
@@ -220,7 +220,7 @@ function ActiveProposalCard({ proposal }: { proposal: GovernanceProposal }) {
 
       <div className="mt-4">
         {proposal.myVote ? (
-          <p className="inline-flex flex-wrap items-center gap-2 rounded-md border border-[oklch(0.88_0.05_155)] bg-[oklch(0.965_0.02_155)] px-3 py-2 text-[13px] font-medium text-[oklch(0.40_0.09_155)]">
+          <p className="inline-flex flex-wrap items-center gap-2 rounded-md border border-success/40 bg-primary-muted px-3 py-2 text-[13px] font-medium text-success-deep">
             <CheckCircle2 className="h-4 w-4" strokeWidth={1.9} />
             You voted {VOTE_LABELS[proposal.myVote]} — one member, one vote. Thank you for participating.
           </p>
@@ -270,7 +270,7 @@ export function WorkerGovernance() {
               </section>
 
               {unvoted.length > 0 && (
-                <p className="flex items-center gap-2 rounded-lg border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-4 py-2.5 text-[13px] font-medium text-[oklch(0.45_0.10_65)]">
+                <p className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning-muted px-4 py-2.5 text-[13px] font-medium text-warning-deep">
                   <Users className="h-4 w-4 shrink-0" strokeWidth={1.9} aria-hidden />
                   {unvoted.length} proposal{unvoted.length === 1 ? "" : "s"} still need your vote — voting closes soon.
                 </p>
@@ -367,7 +367,7 @@ export function WorkerGovernance() {
                       </div>
                       <div className="flex items-baseline justify-between gap-3 border-t border-border/70 pt-2">
                         <dt className="font-semibold">Your share</dt>
-                        <dd className="tnum font-semibold text-[oklch(0.40_0.09_155)]">{money(data.dividend.myShare)}</dd>
+                        <dd className="tnum font-semibold text-success-deep">{money(data.dividend.myShare)}</dd>
                       </div>
                     </dl>
                     <p className="mt-3 text-xs leading-relaxed text-muted-foreground">

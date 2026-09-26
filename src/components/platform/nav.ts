@@ -87,6 +87,7 @@ export const WORKER_NAV: NavGroup[] = [
       { label: "Governance", route: "worker-governance", icon: Vote, badgeKey: "unvoted" },
       { label: "Verification", route: "worker-verification", icon: ShieldCheck },
       { label: "Skill development", route: "worker-skills", icon: GraduationCap },
+      { label: "Training & courses", route: "worker-training", icon: BookOpenCheck },
     ],
   },
   {
@@ -106,6 +107,7 @@ export const ADMIN_NAV: NavGroup[] = [
       { label: "Overview", route: "admin-overview", icon: LayoutDashboard },
       { label: "Demand forecast", route: "admin-forecast", icon: TrendingUp },
       { label: "Bookings", route: "admin-bookings", icon: ClipboardList },
+      { label: "Training & skills", route: "admin-training", icon: GraduationCap },
       { label: "Notifications", route: "admin-notifications", icon: BellRing, badgeKey: "notifications" },
     ],
   },

@@ -19,7 +19,7 @@ function CourseCard({ course }: { course: SkillCourse }) {
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-[15px] font-semibold leading-tight tracking-tight">{course.title}</h3>
           {completed && course.certified && (
-            <span className="inline-flex items-center gap-1 rounded-sm border border-[oklch(0.88_0.05_155)] bg-[oklch(0.965_0.02_155)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.40_0.09_155)]">
+            <span className="inline-flex items-center gap-1 rounded-sm border border-success/40 bg-primary-muted px-1.5 py-0.5 text-[11px] font-medium text-success-deep">
               <Award className="h-3 w-3" strokeWidth={1.9} aria-hidden />
               Certified
             </span>

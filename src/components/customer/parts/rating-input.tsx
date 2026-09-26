@@ -43,7 +43,7 @@ export function RatingInput({
               className={cn(
                 "h-6 w-6 transition-colors",
                 i <= value
-                  ? "fill-[oklch(0.72_0.115_75)] text-[oklch(0.72_0.115_75)]"
+                  ? "fill-chart-4 text-chart-4"
                   : "fill-transparent text-muted-foreground/40 hover:text-muted-foreground",
               )}
               strokeWidth={1.9}
@@ -67,7 +67,7 @@ export function RatingInput({
                 className={cn(
                   "rounded-sm border px-2.5 py-1 text-xs font-medium transition-colors",
                   active
-                    ? "border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)] text-[oklch(0.40_0.09_155)]"
+                    ? "border-primary/40 bg-success-muted text-success-deep"
                     : "text-muted-foreground hover:border-primary/30 hover:text-foreground",
                 )}
               >

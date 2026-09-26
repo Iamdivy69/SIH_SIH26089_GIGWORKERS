@@ -78,7 +78,7 @@ export function FlowSummaryPanel(props: FlowSummaryProps) {
               <span className="text-muted-foreground">Chosen in step 4</span>
             )}
             {props.slotLabel && props.recurrence && props.recurrence !== "one-time" && (
-              <span className="mt-1 inline-flex items-center gap-1.5 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]">
+              <span className="mt-1 inline-flex items-center gap-1.5 rounded-sm border border-warning/40 bg-warning-muted px-1.5 py-0.5 text-[11px] font-medium text-warning-deep">
                 <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
                 Standing order · {recurrenceLabel(props.recurrence).toLowerCase()}
               </span>

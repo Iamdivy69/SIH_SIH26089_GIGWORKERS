@@ -19,9 +19,9 @@ export interface KpiCellData {
 
 const TONE_TEXT: Record<NonNullable<KpiCellData["tone"]>, string> = {
   default: "text-foreground",
-  attention: "text-[oklch(0.45_0.10_65)]",
-  critical: "text-[oklch(0.45_0.16_27)]",
-  positive: "text-[oklch(0.40_0.09_155)]",
+  attention: "text-warning-deep",
+  critical: "text-destructive-deep",
+  positive: "text-success-deep",
 };
 
 export function KpiStrip({ cells, className }: { cells: KpiCellData[]; className?: string }) {
@@ -120,7 +120,7 @@ export function FilterChips({
             className={cn(
               "h-7 rounded-md border px-2.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               active
-                ? "border-[oklch(0.88_0.03_155)] bg-[oklch(0.938_0.016_155)] text-primary"
+                ? "border-primary/40 bg-accent text-primary"
                 : "bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
@@ -141,9 +141,9 @@ export function FilterChips({
 
 const DEMAND_STYLES = {
   low: { cls: "border-border bg-muted text-muted-foreground", label: "Low" },
-  medium: { cls: "border-[oklch(0.89_0.015_240)] bg-[oklch(0.94_0.012_240)] text-[oklch(0.40_0.03_240)]", label: "Medium" },
-  high: { cls: "border-[oklch(0.90_0.06_80)] bg-[oklch(0.955_0.043_85)] text-[oklch(0.45_0.10_65)]", label: "High" },
-  very_high: { cls: "border-[oklch(0.90_0.04_27)] bg-[oklch(0.945_0.028_27)] text-[oklch(0.45_0.16_27)]", label: "Very high" },
+  medium: { cls: "border-info/40 bg-info-muted text-info-deep", label: "Medium" },
+  high: { cls: "border-warning/40 bg-warning-muted text-warning-deep", label: "High" },
+  very_high: { cls: "border-destructive/40 bg-destructive-muted text-destructive-deep", label: "Very high" },
 } as const;
 
 export function DemandBadge({ level }: { level: "low" | "medium" | "high" | "very_high" }) {
@@ -160,9 +160,9 @@ export function DemandBadge({ level }: { level: "low" | "medium" | "high" | "ver
 /* ------------------------------------------------------------------ */
 
 const SEVERITY_STYLES = {
-  info: { dot: "bg-[oklch(0.47_0.03_240)]", text: "text-[oklch(0.40_0.03_240)]", label: "Info" },
-  notice: { dot: "bg-[oklch(0.5_0.105_155)]", text: "text-[oklch(0.40_0.09_155)]", label: "Notice" },
-  warning: { dot: "bg-[oklch(0.62_0.122_65)]", text: "text-[oklch(0.45_0.10_65)]", label: "Warning" },
+  info: { dot: "bg-info", text: "text-info-deep", label: "Info" },
+  notice: { dot: "bg-success", text: "text-success-deep", label: "Notice" },
+  warning: { dot: "bg-warning", text: "text-warning-deep", label: "Warning" },
 } as const;
 
 export function SeverityBadge({ severity }: { severity: "info" | "notice" | "warning" }) {
@@ -211,7 +211,7 @@ export function PctBarList({
           </div>
           <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
             <div
-              className={cn("h-full rounded-full", d.value >= 90 ? "bg-[oklch(0.55_0.12_65)]" : "bg-[oklch(0.62_0.088_158)]")}
+              className={cn("h-full rounded-full", d.value >= 90 ? "bg-warning" : "bg-chart-2")}
               style={{ width: `${Math.min(100, (d.value / max) * 100)}%` }}
             />
           </div>

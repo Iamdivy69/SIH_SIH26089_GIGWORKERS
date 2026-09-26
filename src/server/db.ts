@@ -15,9 +15,14 @@ import type {
   SkillCourse,
   SupportTicket,
   Transaction,
+  TrainingCertificate,
+  TrainingCourse,
+  TrainingEnrollment,
+  AdminTrainingData,
   Worker,
   WorkerAvailabilitySlot,
   WorkerOverview,
+  WorkerTrainingData,
   WelfareProfile,
 } from "@/lib/types";
 import { computePrice } from "@/lib/rates";
@@ -33,6 +38,8 @@ import {
   SEED_REVIEWS,
   SEED_TICKETS,
   SEED_TRANSACTIONS,
+  TRAINING_COURSES,
+  TRAINING_ENROLLMENTS,
   WORKERS,
 } from "./seed";
 import { buildGovernance, buildWelfareProfile } from "./seed-context";
@@ -56,18 +63,21 @@ interface Store {
   tickets: SupportTicket[];
   audit: AuditEntry[];
   courses: SkillCourse[];
+  trainingCourses: TrainingCourse[];
+  trainingEnrollments: TrainingEnrollment[];
   policy: PlatformPolicy;
   governance: GovernanceData;
   forecast: ReturnType<typeof generateForecast>;
   savedWorkers: string[]; // customer's shortlist
   openRequests: OpenJobRequest[];
-  counters: { booking: number; ticket: number; claim: number; notification: number; audit: number };
+  counters: { booking: number; ticket: number; claim: number; notification: number; audit: number; training: number; certificate: number };
 }
 
 const globalRef = globalThis as unknown as { __sahyogStore?: Store; __sahyogSeedVersion?: number };
 
-/** Bump whenever seed data changes — a stale store from a previous HMR cycle reseeds automatically. */
-const SEED_VERSION = 11;
+/** Bump whenever seed data changes — a stale store from a previous HMR cycle reseeds automatically.
+ *  13 = training-hub seed + reseeds away task 6-b's live E2E test enrolments. */
+const SEED_VERSION = 14;
 
 function seedStore(): Store {
   const store: Store = {
@@ -81,12 +91,15 @@ function seedStore(): Store {
     tickets: structuredClone(SEED_TICKETS),
     audit: structuredClone(SEED_AUDIT),
     courses: structuredClone(SEED_COURSES),
+    trainingCourses: structuredClone(TRAINING_COURSES),
+    trainingEnrollments: structuredClone(TRAINING_ENROLLMENTS),
     policy: structuredClone(SEED_POLICY),
     governance: buildGovernance(),
     forecast: generateForecast(),
     savedWorkers: ["w-meena", "w-priya"],
     openRequests: [],
-    counters: { booking: 1, ticket: 100, claim: 100, notification: 100, audit: 100 },
+    /* live training ids/certificates continue past the seeded range (SCT-2025-041…047) */
+    counters: { booking: 1, ticket: 100, claim: 100, notification: 100, audit: 100, training: 100, certificate: 50 },
   };
 
   /* Open job request pool for the worker (platform-routed demand) */
@@ -508,6 +521,190 @@ export function welfareProfileFor(workerId: string): WelfareProfile {
     (c: { workerId: string }) => c.workerId === workerId,
   ) as import("@/lib/types").WelfareClaim[];
   return buildWelfareProfile(txns, extraClaims);
+}
+
+/* ------------------------------------------------------------------ */
+/* Training & upskilling hub — cooperative-funded member training      */
+/* ------------------------------------------------------------------ */
+
+function trainingCourseById(courseId: string): TrainingCourse {
+  const course = getStore().trainingCourses.find((c) => c.id === courseId);
+  if (!course) throw new Error("Training course not found");
+  return course;
+}
+
+function myEnrollment(workerId: string, courseId: string): TrainingEnrollment {
+  const e = getStore().trainingEnrollments.find((en) => en.workerId === workerId && en.courseId === courseId);
+  if (!e) throw new Error("You are not enrolled in this course — enrol first from the catalogue");
+  return e;
+}
+
+/** Completed, certificate-bearing enrollments of one member, joined with course data. */
+export function trainingCertificatesFor(workerId: string): TrainingCertificate[] {
+  const store = getStore();
+  return store.trainingEnrollments
+    .filter((e) => e.workerId === workerId && e.status === "completed" && e.certificateId && e.completedAt)
+    .map((e) => {
+      const course = store.trainingCourses.find((c) => c.id === e.courseId)!;
+      return {
+        courseId: course.id,
+        courseTitle: course.title,
+        certificateId: e.certificateId!,
+        completedAt: e.completedAt!,
+        score: e.score,
+        skills: course.skills,
+        level: course.level,
+        hours: course.durationHrs,
+        category: course.category,
+      };
+    })
+    .sort((a, b) => +new Date(b.completedAt) - +new Date(a.completedAt));
+}
+
+/** Learning hours earned, with partial credit for in-progress courses. */
+function trainingHours(enrollments: TrainingEnrollment[]): number {
+  const store = getStore();
+  return Math.round(
+    enrollments.reduce((a, e) => {
+      const c = store.trainingCourses.find((x) => x.id === e.courseId);
+      return a + (c ? (c.durationHrs * e.progressPct) / 100 : 0);
+    }, 0),
+  );
+}
+
+/** GET /worker/training — catalogue + own enrolments + certificates + stats. */
+export function workerTrainingFor(workerId: string): WorkerTrainingData {
+  const store = getStore();
+  const myEnrollments = [...store.trainingEnrollments.filter((e) => e.workerId === workerId)].sort(
+    (a, b) => +new Date(b.enrolledAt) - +new Date(a.enrolledAt),
+  );
+  const certificates = trainingCertificatesFor(workerId);
+  const upcoming = store.trainingCourses
+    .map((c) => c.nextCohortAt)
+    .filter((d): d is string => Boolean(d) && +new Date(d!) > Date.now());
+  return {
+    courses: store.trainingCourses,
+    myEnrollments,
+    certificates,
+    stats: {
+      completedCount: myEnrollments.filter((e) => e.status === "completed").length,
+      inProgress: myEnrollments.filter((e) => e.status === "in_progress").length,
+      certificatesEarned: certificates.length,
+      hoursCompleted: trainingHours(myEnrollments),
+      nextCohortAt: upcoming.length ? new Date(Math.min(...upcoming.map((d) => +new Date(d)))).toISOString() : undefined,
+    },
+  };
+}
+
+/** GET /admin/training — coverage, per-course and per-member rows. */
+export function adminTrainingFor(): AdminTrainingData {
+  const store = getStore();
+  const monthAgo = Date.now() - 30 * DAY;
+  const byCourse = store.trainingCourses
+    .map((c) => {
+      const ens = store.trainingEnrollments.filter((e) => e.courseId === c.id);
+      const completed = ens.filter((e) => e.status === "completed").length;
+      return {
+        courseId: c.id,
+        title: c.title,
+        level: c.level,
+        category: c.category,
+        enrolled: ens.length,
+        completed,
+        completionRate: ens.length ? Math.round((completed / ens.length) * 100) : 0,
+      };
+    })
+    .sort((a, b) => b.enrolled - a.enrolled || a.title.localeCompare(b.title));
+  const byMember = store.workers
+    .map((w) => {
+      const ens = store.trainingEnrollments.filter((e) => e.workerId === w.id);
+      return {
+        workerId: w.id,
+        name: w.name,
+        trade: w.tradeTitle,
+        certificates: ens.filter((e) => e.status === "completed" && e.certificateId).length,
+        active: ens.filter((e) => e.status === "in_progress").length,
+        hoursCompleted: trainingHours(ens),
+      };
+    })
+    .sort((a, b) => b.certificates - a.certificates || b.hoursCompleted - a.hoursCompleted || a.name.localeCompare(b.name));
+  return {
+    coverage: {
+      membersWithTraining: new Set(store.trainingEnrollments.map((e) => e.workerId)).size,
+      totalMembers: store.workers.length,
+      activeEnrollments: store.trainingEnrollments.filter((e) => e.status === "in_progress").length,
+      completionsThisMonth: store.trainingEnrollments.filter((e) => e.completedAt && +new Date(e.completedAt) >= monthAgo).length,
+      certificatesIssued: store.trainingEnrollments.filter((e) => e.certificateId).length,
+    },
+    byCourse,
+    byMember,
+  };
+}
+
+/** Enrol a member in a course (no fee — funded from the operations budget). */
+export function enrollInCourse(workerId: string, courseId: string): TrainingEnrollment {
+  const store = getStore();
+  const course = trainingCourseById(courseId);
+  if (store.trainingEnrollments.some((e) => e.workerId === workerId && e.courseId === courseId)) {
+    throw new Error("You are already enrolled in this course — continue it from My learning");
+  }
+  const worker = workerById(workerId);
+  const enrollment: TrainingEnrollment = {
+    id: `tre-live-${store.counters.training++}`,
+    courseId,
+    workerId,
+    status: "in_progress",
+    progressPct: 0,
+    enrolledAt: new Date().toISOString(),
+  };
+  store.trainingEnrollments.push(enrollment);
+  notify(workerId, {
+    kind: "verification",
+    title: "Enrolment confirmed",
+    body: `${course.title} — ${course.format.replace("-", " ")} format, ${course.durationHrs} learning hours. The course fee is covered by the cooperative; materials are in your training hub.`,
+    route: { name: "worker-training" },
+  });
+  audit(`${worker.name} enrolled in ${course.title}`, "Training enrolment", worker.name, "worker");
+  return enrollment;
+}
+
+/** Advance one module — progress moves by exactly 100/moduleCount. */
+export function markModuleComplete(workerId: string, courseId: string): { enrollment: TrainingEnrollment; modulesDone: number; moduleCount: number } {
+  const course = trainingCourseById(courseId);
+  const enrollment = myEnrollment(workerId, courseId);
+  if (enrollment.status === "completed") throw new Error("This course is already completed");
+  const modulesDone = Math.min(course.moduleCount, Math.round((enrollment.progressPct / 100) * course.moduleCount));
+  const next = Math.min(course.moduleCount, modulesDone + 1);
+  enrollment.progressPct = Math.round((next / course.moduleCount) * 100);
+  return { enrollment, modulesDone: next, moduleCount: course.moduleCount };
+}
+
+/** Complete a course at 100% — issues a deterministic SCT-2025-### certificate. */
+export function completeCourse(workerId: string, courseId: string): TrainingEnrollment {
+  const store = getStore();
+  const course = trainingCourseById(courseId);
+  const enrollment = myEnrollment(workerId, courseId);
+  if (enrollment.status === "completed") {
+    throw new Error(`Already completed — certificate ${enrollment.certificateId ?? "issued"}`);
+  }
+  if (enrollment.progressPct < 100) {
+    throw new Error(`Finish all modules first — you are at ${enrollment.progressPct}%`);
+  }
+  const worker = workerById(workerId);
+  const n = store.counters.certificate++;
+  enrollment.status = "completed";
+  enrollment.completedAt = new Date().toISOString();
+  enrollment.certificateId = `SCT-2025-${String(n).padStart(3, "0")}`;
+  /* final assessment score (simulated) — deterministic per issuance */
+  enrollment.score = 82 + ((n * 7) % 14);
+  notify(workerId, {
+    kind: "verification",
+    title: "Certificate issued",
+    body: `Certificate ${enrollment.certificateId} issued — ${course.title} (score ${enrollment.score}/100). It is now visible on your customer-facing profile.`,
+    route: { name: "worker-training" },
+  });
+  audit(`Certificate ${enrollment.certificateId} issued — ${worker.name} completed ${course.title} (${enrollment.score}/100)`, "Training certificate", worker.name, "worker", "notice");
+  return enrollment;
 }
 
 export function voteOnProposal(proposalId: string, vote: "approve" | "reject" | "abstain", memberId: string) {

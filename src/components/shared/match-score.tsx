@@ -4,14 +4,14 @@ import type { MatchFactor } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 
-/** Score pill — e.g. "94% match" */
+/** Score pill — e.g. "94% match" (green-tinted chip; text tone follows the score) */
 export function MatchBadge({ score, className, size = "md" }: { score: number; className?: string; size?: "sm" | "md" | "lg" }) {
-  const tone = score >= 85 ? "text-[oklch(0.40_0.09_155)]" : score >= 70 ? "text-[oklch(0.45_0.10_65)]" : "text-muted-foreground";
+  const tone = score >= 85 ? "text-success-deep" : score >= 70 ? "text-warning-deep" : "text-muted-foreground";
   const sizes = { sm: "text-xs px-1.5 py-0.5", md: "text-[13px] px-2 py-1", lg: "text-sm px-2.5 py-1.5" };
   return (
     <span
       className={cn(
-        "tnum inline-flex items-center gap-1 rounded-sm border border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)] font-semibold",
+        "tnum inline-flex items-center gap-1 rounded-sm border border-success/40 bg-success-muted font-semibold",
         tone,
         sizes[size],
         className,
@@ -23,10 +23,10 @@ export function MatchBadge({ score, className, size = "md" }: { score: number; c
 }
 
 const barTone = (score: number) =>
-  score >= 85 ? "bg-[oklch(0.5_0.105_155)]" : score >= 70 ? "bg-[oklch(0.62_0.122_65)]" : score >= 50 ? "bg-[oklch(0.72_0.115_75)]" : "bg-muted-foreground/50";
+  score >= 85 ? "bg-success" : score >= 70 ? "bg-warning" : score >= 50 ? "bg-chart-4" : "bg-muted-foreground/50";
 
 const assessmentTone = (score: number) =>
-  score >= 85 ? "text-[oklch(0.40_0.09_155)]" : score >= 70 ? "text-[oklch(0.45_0.10_65)]" : "text-muted-foreground";
+  score >= 85 ? "text-success-deep" : score >= 70 ? "text-warning-deep" : "text-muted-foreground";
 
 /**
  * "Why this worker / job was recommended" — the transparent scoring
@@ -63,7 +63,7 @@ export function MatchReasonChips({ factors, max = 4 }: { factors: MatchFactor[];
     <ul className="space-y-1.5">
       {factors.slice(0, max).map((f) => (
         <li key={f.id} className="flex items-start gap-2 text-[13px]">
-          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" />
+          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
           <span>
             {f.label} — <span className="text-muted-foreground">{f.assessment.toLowerCase()}</span>
           </span>

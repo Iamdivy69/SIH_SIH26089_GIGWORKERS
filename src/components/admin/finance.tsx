@@ -1,7 +1,8 @@
 "use client";
 
-import { Landmark } from "lucide-react";
+import { Download, Landmark } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertBanner,
@@ -15,9 +16,33 @@ import type { Column } from "@/components/shared";
 import { FineNote, KpiStrip, KpiStripSkeleton } from "./ui";
 import { useFinance } from "@/hooks/use-api";
 import { money, moneyCompact } from "@/lib/format";
+import { csvDateStamp, downloadCsv } from "@/lib/csv";
 import { cn } from "@/lib/utils";
 
 type ReconRow = { label: string; amount: number; expected: number; status: "matched" | "variance" };
+
+type FinanceData = NonNullable<ReturnType<typeof useFinance>["data"]>;
+
+/** Month-to-date finance statement as a spreadsheet download. */
+function exportFinanceCsv(d: FinanceData): void {
+  downloadCsv(`sahyog-finance-mtd-${csvDateStamp()}`, ["Section", "Line item", "Amount (₹)", "Note"], [
+    ["Month to date", "Commission — cooperative revenue", d.commissionMonth, "6% processing share of completed bookings"],
+    ["Month to date", "GST collected", d.gstCollectedMonth, "18% on platform fees · payable"],
+    ["Month to date", "Welfare pool — member contributions", d.welfarePoolMonth, "3% of service charges, credited per member"],
+    ["Month to date", "Payouts processed", d.payoutsProcessedMonth, "settled this month"],
+    ["Month to date", "TDS remitted", d.tdsRemittedMonth, "s.194-O (simulated)"],
+    ["Balances", "Welfare pool — accumulated funds", d.welfarePoolTotal, "member-visible"],
+    ["Balances", "Payouts pending", d.payoutsPending, "next weekly batch"],
+    ["Balances", "Dispute holds", d.disputeHolds, "frozen pending resolution"],
+    ...d.revenueSeries.map((r) => ["Weekly revenue (8 weeks)", String(r.label), r.value, "commission per week"] as (string | number)[]),
+    ...d.reconciliation.map(
+      (r) => ["Ledger reconciliation", r.label, r.amount, `expected ${r.expected} · ${r.status}`] as (string | number)[],
+    ),
+  ]);
+  toast("Finance statement exported", {
+    description: "Month-to-date figures, weekly revenue and ledger reconciliation — CSV.",
+  });
+}
 
 /** Finance — the cooperative's money view: revenue, member funds, compliance. */
 export function AdminFinanceScreen() {
@@ -41,6 +66,17 @@ export function AdminFinanceScreen() {
         eyebrow="Cooperative · finance"
         title="Finance"
         description="Revenue, member funds and statutory balances for the current month. Every figure below is derived from the transaction ledger — the same ledger members see their own slice of."
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => d && exportFinanceCsv(d)}
+            disabled={loading || !d}
+            aria-label="Export month-to-date finance statement as CSV"
+          >
+            <Download className="h-3.5 w-3.5" strokeWidth={1.9} /> Export CSV
+          </Button>
+        }
       />
 
       {loading ? (
@@ -130,8 +166,8 @@ export function AdminFinanceScreen() {
                     className={cn(
                       "micro-label rounded-sm border px-1.5 py-0.5",
                       r.status === "matched"
-                        ? "border-[oklch(0.88_0.05_155)] bg-[oklch(0.945_0.034_155)] text-[oklch(0.40_0.09_155)]"
-                        : "border-[oklch(0.90_0.06_80)] bg-[oklch(0.955_0.043_85)] text-[oklch(0.45_0.10_65)]",
+                        ? "border-success/40 bg-success-muted text-success-deep"
+                        : "border-warning/40 bg-warning-muted text-warning-deep",
                     )}
                   >
                     {r.status === "matched" ? "Matched" : "Variance"}
@@ -140,7 +176,7 @@ export function AdminFinanceScreen() {
                 <p className="tnum text-xs text-muted-foreground">
                   recorded {money(r.amount)} · expected {money(r.expected)}
                   {r.amount !== r.expected && (
-                    <span className="tnum ml-1 font-medium text-[oklch(0.45_0.10_65)]">
+                    <span className="tnum ml-1 font-medium text-warning-deep">
                       (Δ {money(r.amount - r.expected)})
                     </span>
                   )}
@@ -170,7 +206,7 @@ function SplitRow({ label, share, note, tone }: { label: string; share: string; 
         <p className="text-[13px] font-medium">{label}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>
       </div>
-      <p className={cn("tnum shrink-0 text-lg font-semibold", tone === "positive" && "text-[oklch(0.40_0.09_155)]")}>{share}</p>
+      <p className={cn("tnum shrink-0 text-lg font-semibold", tone === "positive" && "text-success-deep")}>{share}</p>
     </div>
   );
 }
@@ -187,7 +223,7 @@ const reconColumns: Column<ReconRow>[] = [
       r.amount === r.expected ? (
         <span className="tnum text-muted-foreground">—</span>
       ) : (
-        <span className="tnum font-medium text-[oklch(0.45_0.10_65)]">
+        <span className="tnum font-medium text-warning-deep">
           {r.amount > r.expected ? "+" : "−"}
           {money(Math.abs(r.amount - r.expected))}
         </span>
@@ -201,8 +237,8 @@ const reconColumns: Column<ReconRow>[] = [
         className={cn(
           "micro-label rounded-sm border px-1.5 py-0.5",
           r.status === "matched"
-            ? "border-[oklch(0.88_0.05_155)] bg-[oklch(0.945_0.034_155)] text-[oklch(0.40_0.09_155)]"
-            : "border-[oklch(0.90_0.06_80)] bg-[oklch(0.955_0.043_85)] text-[oklch(0.45_0.10_65)]",
+            ? "border-success/40 bg-success-muted text-success-deep"
+            : "border-warning/40 bg-warning-muted text-warning-deep",
         )}
       >
         {r.status === "matched" ? "Matched" : "Variance"}

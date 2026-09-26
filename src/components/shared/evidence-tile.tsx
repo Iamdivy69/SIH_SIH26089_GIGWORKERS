@@ -31,7 +31,7 @@ export function EvidenceTile({
     <div
       className={cn(
         "flex items-center justify-between gap-3 rounded-lg border px-4 py-3",
-        captured ? "border-[oklch(0.88_0.05_155)] bg-[oklch(0.965_0.02_155)]" : "bg-card",
+        captured ? "border-success/40 bg-primary-muted" : "bg-card",
         className,
       )}
     >
@@ -39,7 +39,7 @@ export function EvidenceTile({
         <div
           className={cn(
             "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border",
-            captured ? "border-transparent bg-[oklch(0.5_0.105_155)] text-white" : "bg-muted/60 text-muted-foreground",
+            captured ? "border-transparent bg-success text-success-foreground" : "bg-muted/60 text-muted-foreground",
           )}
         >
           {captured ? <CheckCircle2 className="h-4.5 w-4.5" /> : <Camera className="h-4 w-4" />}
@@ -57,7 +57,7 @@ export function EvidenceTile({
         </Button>
       )}
       {captured && (
-        <span className="tnum inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-[oklch(0.40_0.09_155)]">
+        <span className="tnum inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-success-deep">
           <Clock className="h-3 w-3" /> Recorded
         </span>
       )}

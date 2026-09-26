@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { CalendarPlus } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState, ErrorState, LoadingPanel } from "@/components/shared";
@@ -10,6 +11,7 @@ import { useAppStore } from "@/store/app-store";
 import type { Booking, Worker } from "@/lib/types";
 import { isActiveBooking, isHistoryBooking, isUpcomingBooking } from "../constants";
 import { useWorkerMap } from "../hooks";
+import { setBookingPrefill } from "../prefill";
 import { BookingCard } from "../parts/booking-card";
 
 export function BookingsScreen() {
@@ -26,6 +28,21 @@ export function BookingsScreen() {
     }),
     [items],
   );
+
+  /* "Book again" — restart the flow with the same service, member and description. */
+  const bookAgain = (b: Booking) => {
+    setBookingPrefill({
+      workerId: b.workerId,
+      categoryId: b.categoryId,
+      serviceId: b.serviceId,
+      description: b.description,
+      notes: b.customerNotes ?? undefined,
+    });
+    toast("Booking restarted", {
+      description: `${b.title} — same service, member and description. Pick a slot to continue.`,
+    });
+    navigate("customer-book", { categoryId: b.categoryId });
+  };
 
   return (
     <div>
@@ -88,6 +105,7 @@ export function BookingsScreen() {
               emptyDescription="Completed and cancelled services are kept here with their invoices."
               workers={workers}
               onNavigate={navigate}
+              onBookAgain={bookAgain}
             />
           </TabsContent>
         </Tabs>
@@ -104,12 +122,14 @@ function BookingList({
   emptyDescription,
   workers,
   onNavigate,
+  onBookAgain,
 }: {
   items: Booking[];
   emptyTitle: string;
   emptyDescription: string;
   workers: Map<string, Worker>;
   onNavigate: Navigate;
+  onBookAgain?: (b: Booking) => void;
 }) {
   if (items.length === 0) {
     return (
@@ -132,6 +152,7 @@ function BookingList({
           booking={b}
           worker={workers.get(b.workerId)}
           onView={() => onNavigate("customer-booking", { bookingId: b.id })}
+          onBookAgain={onBookAgain ? () => onBookAgain(b) : undefined}
         />
       ))}
     </div>

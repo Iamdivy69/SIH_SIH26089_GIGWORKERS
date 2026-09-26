@@ -39,10 +39,11 @@ export function CustomerPriceLines({ price, className }: { price: PriceBreakdown
   );
 }
 
+/* Allocation bar segments — chart tokens keep both modes legible on cards. */
 const SEGMENT_COLORS: Record<string, string> = {
   primary: "bg-primary",
-  success: "bg-[oklch(0.62_0.10_158)]",
-  info: "bg-[oklch(0.70_0.03_235)]",
+  success: "bg-chart-2",
+  info: "bg-chart-6",
   neutral: "bg-muted-foreground/50",
 };
 
@@ -92,7 +93,7 @@ export function WorkerPayoutCard({ price, className }: { price: PriceBreakdown; 
               <dt className="font-medium">{r.label}</dt>
               <dd className="mt-0.5 text-xs text-muted-foreground">{r.note}</dd>
             </div>
-            <dd className={cn("tnum shrink-0 font-medium", r.amount < 0 && !r.keep && "text-muted-foreground", r.keep && "text-[oklch(0.45_0.10_155)]")}>
+            <dd className={cn("tnum shrink-0 font-medium", r.amount < 0 && !r.keep && "text-muted-foreground", r.keep && "text-success-deep")}>
               {r.amount < 0 ? `− ${money(Math.abs(r.amount))}` : money(r.amount)}
             </dd>
           </div>
@@ -102,7 +103,7 @@ export function WorkerPayoutCard({ price, className }: { price: PriceBreakdown; 
           <dd className="tnum text-[15px] font-semibold">{money(price.workerNetPayout)}</dd>
         </div>
       </dl>
-      <p className="mt-2 flex items-start gap-1.5 rounded-md bg-[oklch(0.945_0.034_155)] px-3 py-2 text-xs leading-relaxed text-[oklch(0.40_0.09_155)]">
+      <p className="mt-2 flex items-start gap-1.5 rounded-md bg-success-muted px-3 py-2 text-xs leading-relaxed text-success-deep">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         You also receive {money(price.workerWelfareCredit)} in your welfare fund — total value from this job{" "}
         <span className="tnum font-semibold">{money(price.workerNetPayout + price.workerWelfareCredit)}</span>.

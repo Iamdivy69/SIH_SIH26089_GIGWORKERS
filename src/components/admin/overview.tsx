@@ -132,8 +132,8 @@ export function AdminOverviewScreen() {
       ) : (
         <div className="mb-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 rounded-lg border bg-card px-4 py-3">
           <p className="flex min-w-0 items-center gap-2.5 text-[13px]">
-            <Repeat className="h-4 w-4 shrink-0 text-[oklch(0.45_0.10_155)]" strokeWidth={1.9} aria-hidden />
-            <span className="tnum font-semibold text-[oklch(0.45_0.10_155)]">Standing orders active: {num(data.standingOrders)}</span>
+            <Repeat className="h-4 w-4 shrink-0 text-success-deep" strokeWidth={1.9} aria-hidden />
+            <span className="tnum font-semibold text-success-deep">Standing orders active: {num(data.standingOrders)}</span>
             <span className="text-muted-foreground">recurring series with an upcoming visit</span>
           </p>
           <p className="text-xs leading-relaxed text-muted-foreground">
@@ -205,7 +205,7 @@ export function AdminOverviewScreen() {
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-[oklch(0.62_0.088_158)]"
+                      className="h-full rounded-full bg-chart-2"
                       style={{ width: `${(g.bookings / Math.max(...data.geographic.map((x) => x.bookings), 1)) * 100}%` }}
                     />
                   </div>
@@ -230,7 +230,7 @@ export function AdminOverviewScreen() {
                     <span className="tnum shrink-0 font-medium">{q.value.toFixed(1)} / 5</span>
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full rounded-full bg-[oklch(0.62_0.088_158)]" style={{ width: `${(q.value / 5) * 100}%` }} />
+                    <div className="h-full rounded-full bg-chart-2" style={{ width: `${(q.value / 5) * 100}%` }} />
                   </div>
                 </li>
               ))}
@@ -285,7 +285,7 @@ function QualityRow({
         <p className="text-[13px] font-medium">{label}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
       </div>
-      <p className={cn("tnum shrink-0 text-lg font-semibold tracking-tight", tone === "attention" && "text-[oklch(0.45_0.10_65)]")}>
+      <p className={cn("tnum shrink-0 text-lg font-semibold tracking-tight", tone === "attention" && "text-warning-deep")}>
         {value}
       </p>
     </div>

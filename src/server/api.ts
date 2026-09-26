@@ -11,21 +11,27 @@ import { recommend } from "./matching";
 import {
   addBooking,
   addBookingMessage,
+  adminTrainingFor,
   audit,
   bookingById,
   categories,
+  completeCourse,
   confirmBooking,
   createTicket,
   customerById,
+  enrollInCourse,
   getStore,
+  markModuleComplete,
   notify,
   recurringMonthlyFor,
   settleBooking,
+  trainingCertificatesFor,
   updatePolicy,
   voteOnProposal,
   welfareProfileFor,
   workerById,
   workerOverviewFor,
+  workerTrainingFor,
   ADMIN_USER,
   CUSTOMER_USER,
   WORKER_USER,
@@ -241,7 +247,9 @@ route("GET", "/workers/:id", (_req, params) => {
   const similar = store.workers
     .filter((w) => w.category === worker.category && w.id !== worker.id && w.status === "verified")
     .slice(0, 3);
-  return { worker, reviews, bookingsDone, similar, saved: store.savedWorkers.includes(worker.id) };
+  /* Training certificates — the cooperative-funded credentials shown to customers */
+  const certificates = trainingCertificatesFor(worker.id);
+  return { worker, reviews, bookingsDone, similar, saved: store.savedWorkers.includes(worker.id), certificates };
 });
 
 route("POST", "/workers/:id/save", (_req, params) => {
@@ -254,19 +262,32 @@ route("POST", "/workers/:id/save", (_req, params) => {
 
 route("POST", "/matching", (_req, _p, body) => {
   const store = getStore();
+  /* Input hardening — same contract as POST /bookings: clear typed errors. */
+  const categoryId = body?.categoryId as string | undefined;
+  if (!categoryId || !categories().some((c) => c.id === categoryId)) {
+    throw new Error("Unknown service category — pick one of the six cooperative categories");
+  }
+  if (body?.serviceId !== undefined && !serviceById(categoryId as ServiceCategoryId, body.serviceId)) {
+    throw new Error(`Unknown service — ${String(body.serviceId)} is not offered under ${categoryId}`);
+  }
+  const charge = body?.charge !== undefined ? Number(body.charge) : 800;
+  if (!Number.isFinite(charge) || charge <= 0) {
+    throw new Error("Invalid service charge — a positive rupee amount is required");
+  }
   const customer = customerById(CUSTOMER_USER);
   const scheduledAt = new Date(body.scheduledAt ?? Date.now() + 86400000);
+  if (Number.isNaN(scheduledAt.getTime())) throw new Error("Invalid slot — please pick a date and time");
   const recs = recommend(store.workers, {
-    categoryId: body.categoryId as ServiceCategoryId,
+    categoryId: categoryId as ServiceCategoryId,
     serviceId: body.serviceId,
     scheduledAt,
     customerLocality: customer.locality,
-    serviceCharge: body.charge ?? 800,
+    serviceCharge: charge,
   });
   return {
     recommendations: recs,
     weights: { skill: 35, location: 20, availability: 20, rating: 15, experience: 10 },
-    estimate: computePrice(body.charge ?? 800),
+    estimate: computePrice(charge),
   };
 });
 
@@ -686,6 +707,30 @@ route("GET", "/worker/skills", (_req, _p, _b, user) => {
 });
 
 /* ------------------------------------------------------------------ */
+/* Training & upskilling hub                                           */
+/* ------------------------------------------------------------------ */
+
+route("GET", "/worker/training", (_req, _p, _b, user) => workerTrainingFor(user || WORKER_USER));
+
+route("POST", "/worker/training/:courseId/enroll", (_req, params, _b, user) => {
+  const workerId = user || WORKER_USER;
+  const enrollment = enrollInCourse(workerId, params.courseId);
+  return { enrollment };
+});
+
+route("POST", "/worker/training/:courseId/progress", (_req, params, _b, user) => {
+  const workerId = user || WORKER_USER;
+  const result = markModuleComplete(workerId, params.courseId);
+  return result;
+});
+
+route("POST", "/worker/training/:courseId/complete", (_req, params, _b, user) => {
+  const workerId = user || WORKER_USER;
+  const enrollment = completeCourse(workerId, params.courseId);
+  return { enrollment };
+});
+
+/* ------------------------------------------------------------------ */
 /* Governance                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -832,6 +877,8 @@ route("GET", "/admin/overview", () => {
 });
 
 route("GET", "/admin/forecast", () => getStore().forecast);
+
+route("GET", "/admin/training", () => adminTrainingFor());
 
 route("GET", "/admin/workers", (req) => {
   const store = getStore();

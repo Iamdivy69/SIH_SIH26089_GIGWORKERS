@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import { DEMO_USER_ID, useRole } from "@/store/app-store";
 import type {
   AdminOverview,
+  AdminTrainingData,
   AppNotification,
   Booking,
   BookingMessage,
@@ -20,11 +21,14 @@ import type {
   ServiceCategoryId,
   SkillCourse,
   SupportTicket,
+  TrainingCertificate,
+  TrainingEnrollment,
   Transaction,
   Worker,
   WorkerAvailabilitySlot,
   WorkerOverview,
   WorkerRecommendation,
+  WorkerTrainingData,
   WelfareProfile,
   WorkerCertification,
   VerificationItem,
@@ -97,7 +101,15 @@ export function useWorkerProfile(id: string | undefined) {
   return useQuery({
     queryKey: ["worker", id],
     queryFn: () =>
-      apiClient.get<{ worker: Worker; reviews: Review[]; bookingsDone: number; similar: Worker[]; saved: boolean }>(`workers/${id}`),
+      apiClient.get<{
+        worker: Worker;
+        reviews: Review[];
+        bookingsDone: number;
+        similar: Worker[];
+        saved: boolean;
+        /** Cooperative training credentials (certificates) earned by this member. */
+        certificates: TrainingCertificate[];
+      }>(`workers/${id}`),
     enabled: Boolean(id),
   });
 }
@@ -398,6 +410,58 @@ export function useSkills() {
   });
 }
 
+/* ------------------------- training hub --------------------------- */
+
+export function useWorkerTraining() {
+  return useQuery({ queryKey: ["worker-training"], queryFn: () => apiClient.get<WorkerTrainingData>("worker/training") });
+}
+
+export function useEnrollCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (courseId: string) => apiClient.post<{ enrollment: TrainingEnrollment }>(`worker/training/${courseId}/enroll`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["worker-training"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success("Enrolled", { description: "The course is in My learning — the cooperative covers the fee." });
+    },
+    onError: (err: Error) => toast.error("Could not enrol", { description: err.message }),
+  });
+}
+
+export function useCourseProgress() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (courseId: string) =>
+      apiClient.post<{ enrollment: TrainingEnrollment; modulesDone: number; moduleCount: number }>(`worker/training/${courseId}/progress`),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["worker-training"] });
+      toast.success(`Module ${data.modulesDone} of ${data.moduleCount} complete`, {
+        description:
+          data.enrollment.progressPct >= 100
+            ? "All modules done — complete the course to earn your certificate."
+            : `${data.enrollment.progressPct}% through the course.`,
+      });
+    },
+    onError: (err: Error) => toast.error("Progress not saved", { description: err.message }),
+  });
+}
+
+export function useCompleteCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (courseId: string) => apiClient.post<{ enrollment: TrainingEnrollment }>(`worker/training/${courseId}/complete`),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["worker-training"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success(`Certificate ${data.enrollment.certificateId} issued`, {
+        description: `Score ${data.enrollment.score ?? "—"}/100 — the credential is on your profile for customers to see.`,
+      });
+    },
+    onError: (err: Error) => toast.error("Cannot complete yet", { description: err.message }),
+  });
+}
+
 /* ---------------------------- governance --------------------------- */
 
 export function useGovernance() {
@@ -446,6 +510,10 @@ export function useAdminOverview() {
 
 export function useForecast() {
   return useQuery({ queryKey: ["admin-forecast"], queryFn: () => apiClient.get<ForecastData>("admin/forecast") });
+}
+
+export function useAdminTraining() {
+  return useQuery({ queryKey: ["admin-training"], queryFn: () => apiClient.get<AdminTrainingData>("admin/training") });
 }
 
 export function useAdminWorkers(status?: string) {

@@ -118,7 +118,7 @@ function ChatBubble({ message, own }: { message: BookingMessage; own: boolean })
       <span
         className={cn(
           "mt-0.5 h-2 w-2 shrink-0 self-center rounded-full",
-          message.authorRole === "worker" ? "bg-[oklch(0.62_0.088_158)]" : "bg-[oklch(0.75_0.045_75)]",
+          message.authorRole === "worker" ? "bg-chart-2" : "bg-warning/60",
         )}
         aria-hidden
       />
@@ -126,7 +126,7 @@ function ChatBubble({ message, own }: { message: BookingMessage; own: boolean })
         <div
           className={cn(
             "rounded-lg border px-3.5 py-2.5",
-            own ? "rounded-tr-sm border-primary/25 bg-[oklch(0.965_0.016_155)]" : "rounded-tl-sm bg-muted/40",
+            own ? "rounded-tr-sm border-primary/25 bg-primary-muted" : "rounded-tl-sm bg-muted/40",
           )}
         >
           <p className="text-[11px] font-medium uppercase tracking-[0.04em] text-muted-foreground">

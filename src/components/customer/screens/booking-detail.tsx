@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import {
   CalendarClock,
   CalendarPlus,
+  RotateCcw,
   Camera,
   MessageSquare,
   Phone,
@@ -42,6 +43,7 @@ import { useAppStore } from "@/store/app-store";
 import { dateTimeLabel, dateShort, duration, money, relativeTime } from "@/lib/format";
 import type { Booking } from "@/lib/types";
 import { addressById, addressLine, nextOccurrenceAt, recurrenceLabel } from "../constants";
+import { setBookingPrefill } from "../prefill";
 import { RatingInput } from "../parts/rating-input";
 import { StandingOrderChip } from "../parts/booking-card";
 
@@ -152,6 +154,28 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
         actions={
           <>
             <StatusBadge status={booking.status} />
+            {booking.status === "completed" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setBookingPrefill({
+                    workerId: booking.workerId,
+                    categoryId: booking.categoryId,
+                    serviceId: booking.serviceId,
+                    description: booking.description,
+                    notes: booking.customerNotes ?? undefined,
+                  });
+                  toast("Booking restarted", {
+                    description: `${booking.title} — same service, member and description. Pick a slot to continue.`,
+                  });
+                  navigate("customer-book", { categoryId: booking.categoryId });
+                }}
+                aria-label="Book this service again with the same member"
+              >
+                <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.9} /> Book again
+              </Button>
+            )}
             {cancellable && (
               <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
                 <AlertDialogTrigger asChild>
@@ -165,7 +189,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                     <AlertDialogDescription asChild>
                       <div className="space-y-3">
                         {booking.recurrence && (
-                          <span className="block rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-3 py-2 text-[13px] font-medium text-[oklch(0.45_0.10_65)]">
+                          <span className="block rounded-md border border-warning/40 bg-warning-muted px-3 py-2 text-[13px] font-medium text-warning-deep">
                             This also ends the standing order series — no further {recurrenceLabel(booking.recurrence).toLowerCase()} visits will be scheduled.
                           </span>
                         )}
@@ -380,7 +404,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                       This standing order was ended — no further {recurrenceLabel(booking.recurrence).toLowerCase()} visits will be scheduled.
                     </p>
                   ) : (
-                    <p className="flex items-start gap-2 rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-3 py-2.5 text-[13px] leading-relaxed text-[oklch(0.45_0.10_65)]">
+                    <p className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning-muted px-3 py-2.5 text-[13px] leading-relaxed text-warning-deep">
                       <CalendarClock className="tnum mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
                       {booking.status === "completed"
                         ? `The next visit was scheduled automatically for ${nextVisitLabel}.`
@@ -401,7 +425,7 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                 <PaymentAllocation price={booking.price} />
               </div>
               <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Star className="h-3.5 w-3.5 text-[oklch(0.72_0.115_75)]" strokeWidth={1.9} />
+                <Star className="h-3.5 w-3.5 text-chart-4" strokeWidth={1.9} />
                 Payment status: <StatusBadge status={booking.paymentStatus} />
               </p>
             </SectionCard>

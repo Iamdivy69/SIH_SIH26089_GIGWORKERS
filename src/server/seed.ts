@@ -11,6 +11,8 @@ import type {
   SkillCourse,
   SupportTicket,
   Transaction,
+  TrainingCourse,
+  TrainingEnrollment,
   VerificationItem,
   Worker,
   WorkerAvailabilitySlot,
@@ -951,6 +953,147 @@ export const SEED_COURSES: SkillCourse[] = [
 ];
 
 /* ------------------------------------------------------------------ */
+/* Training & upskilling hub — cooperative-funded courses + enrolments */
+/* ------------------------------------------------------------------ */
+
+export const TRAINING_COURSES: TrainingCourse[] = [
+  {
+    id: "tc-1",
+    title: "Advanced Appliance Diagnosis & Repair",
+    category: "electrical",
+    description:
+      "Systematic fault-finding for washing machines, refrigerators and microwaves — motor and compressor testing, control-board diagnosis, and honest repair-versus-replace quoting for the customer.",
+    durationHrs: 12,
+    level: "advanced",
+    format: "in-person",
+    instructor: "Vikram Salunkhe — ITI Pune, 18 yrs appliance service",
+    skills: ["Motor & compressor testing", "Control-board diagnosis", "Repair-vs-replace quoting"],
+    moduleCount: 6,
+    nextCohortAt: iso(daysAhead(18, 10, 0)),
+    seatsLeft: 4,
+  },
+  {
+    id: "tc-2",
+    title: "Solar Rooftop Installation Basics",
+    category: "electrical",
+    description:
+      "Rooftop mount assembly, string wiring and inverter commissioning for residential 1–3 kW systems, taught over three weekend blocks with a live install at the Sahyog Centre.",
+    durationHrs: 16,
+    level: "foundation",
+    format: "hybrid",
+    instructor: "Aarti Nene — MNRE-certified solar trainer, 11 yrs",
+    skills: ["Mounting & load calculation", "Inverter & battery wiring", "Net-metering documentation"],
+    moduleCount: 3,
+    nextCohortAt: iso(daysAhead(9, 9, 30)),
+    seatsLeft: 6,
+  },
+  {
+    id: "tc-3",
+    title: "Modern Plumbing Fixtures & Water Harvesting",
+    category: "plumbing",
+    description:
+      "Concealed fitting of modern fixtures without tile damage, low-flow retrofits, and layout of rooftop rainwater harvesting for apartment societies — Pune's water reality, practically taught.",
+    durationHrs: 10,
+    level: "foundation",
+    format: "in-person",
+    instructor: "Dattatray Bhosale — licensed plumbing contractor, 22 yrs",
+    skills: ["Concealed fixture fitting", "Low-flow retrofits", "Rainwater harvesting layout"],
+    moduleCount: 4,
+    nextCohortAt: iso(daysAhead(13, 10, 0)),
+    seatsLeft: 3,
+  },
+  {
+    id: "tc-4",
+    title: "Eco-friendly Deep Cleaning Practices",
+    category: "cleaning",
+    description:
+      "pH-neutral and enzyme-based product handling, surface-specific methods for Indian homes, and water-saving routines that cut tank use per deep clean without cutting results.",
+    durationHrs: 8,
+    level: "foundation",
+    format: "in-person",
+    instructor: "Shalini Mahajan — facility hygiene trainer, 12 yrs",
+    skills: ["pH-neutral product use", "Surface-specific methods", "Water-saving routines"],
+    moduleCount: 4,
+    nextCohortAt: iso(daysAhead(5, 9, 0)),
+    seatsLeft: 2,
+  },
+  {
+    id: "tc-5",
+    title: "Kitchen Garden & Seasonal Planting",
+    category: "gardening",
+    description:
+      "Seasonal planting calendars for Pune's climate, soil and compost basics, and setting up low-cost drip irrigation so kitchen gardens survive the summer.",
+    durationHrs: 6,
+    level: "foundation",
+    format: "hybrid",
+    instructor: "Maruti Gole — horticulturist, Pune Municipal Gardens (ret'd)",
+    skills: ["Seasonal planting calendars", "Composting & soil health", "Drip irrigation setup"],
+    moduleCount: 3,
+    nextCohortAt: iso(daysAhead(21, 10, 0)),
+    seatsLeft: 8,
+  },
+  {
+    id: "tc-6",
+    title: "Customer Communication & Digital Payments",
+    category: "professional",
+    description:
+      "Explaining the transparent bill on the doorstep, safe UPI practice for members, and de-escalating disputes before they reach the support desk. Open to every trade.",
+    durationHrs: 4,
+    level: "foundation",
+    format: "online",
+    instructor: "Medha Kulkarni — customer-experience faculty, 9 yrs",
+    skills: ["UPI payment safety", "Dispute de-escalation", "Explaining pricing clearly"],
+    moduleCount: 2,
+    nextCohortAt: iso(daysAhead(2, 17, 0)),
+    seatsLeft: 15,
+  },
+  {
+    id: "tc-7",
+    title: "Home Electrical Safety Audit",
+    category: "electrical",
+    description:
+      "A repeatable audit method for homes — earthing and leakage testing, load and MCB sizing, and writing the safety summary customers receive at the end of every audit.",
+    durationHrs: 6,
+    level: "foundation",
+    format: "online",
+    instructor: "Rajendra Kulkarni — Electrical Inspector (ret'd), Maharashtra",
+    skills: ["Earthing & leakage testing", "Load & MCB sizing", "Written audit reporting"],
+    moduleCount: 3,
+    nextCohortAt: iso(daysAhead(11, 18, 30)),
+    seatsLeft: 9,
+  },
+];
+
+/**
+ * Seeded enrolments — 14 across the member base, 7 completed with
+ * certificates (SCT-2025-041…047; live issuances continue from 050).
+ * In-progress percentages are exact module boundaries (100/moduleCount).
+ */
+export const TRAINING_ENROLLMENTS: TrainingEnrollment[] = [
+  /* Priya — the demo member: one completed (cert) + one in progress */
+  { id: "tre-1", courseId: "tc-1", workerId: "w-priya", status: "completed", progressPct: 100, enrolledAt: iso(daysAgo(102, 9, 0)), completedAt: iso(daysAgo(61, 16, 0)), certificateId: "SCT-2025-041", score: 92 },
+  { id: "tre-2", courseId: "tc-2", workerId: "w-priya", status: "in_progress", progressPct: 67, enrolledAt: iso(daysAgo(24, 9, 0)) },
+  /* Cleaning members */
+  { id: "tre-3", courseId: "tc-4", workerId: "w-meena", status: "completed", progressPct: 100, enrolledAt: iso(daysAgo(75, 9, 0)), completedAt: iso(daysAgo(40, 15, 0)), certificateId: "SCT-2025-042", score: 88 },
+  { id: "tre-5", courseId: "tc-4", workerId: "w-kavita", status: "completed", progressPct: 100, enrolledAt: iso(daysAgo(52, 9, 0)), completedAt: iso(daysAgo(18, 12, 0)), certificateId: "SCT-2025-044", score: 85 },
+  { id: "tre-13", courseId: "tc-4", workerId: "w-shalini", status: "in_progress", progressPct: 25, enrolledAt: iso(daysAgo(7, 9, 0)) },
+  /* Gardening members */
+  { id: "tre-4", courseId: "tc-5", workerId: "w-arjun", status: "completed", progressPct: 100, enrolledAt: iso(daysAgo(58, 9, 0)), completedAt: iso(daysAgo(25, 13, 0)), certificateId: "SCT-2025-043", score: 90 },
+  { id: "tre-14", courseId: "tc-5", workerId: "w-prasad", status: "in_progress", progressPct: 33, enrolledAt: iso(daysAgo(11, 9, 0)) },
+  /* Professional skills */
+  { id: "tre-6", courseId: "tc-6", workerId: "w-sunita", status: "completed", progressPct: 100, enrolledAt: iso(daysAgo(45, 9, 0)), completedAt: iso(daysAgo(12, 17, 0)), certificateId: "SCT-2025-045", score: 94 },
+  /* Appliance repair (electrical + repairs members) */
+  { id: "tre-7", courseId: "tc-1", workerId: "w-farhan", status: "completed", progressPct: 100, enrolledAt: iso(daysAgo(88, 9, 0)), completedAt: iso(daysAgo(55, 11, 0)), certificateId: "SCT-2025-046", score: 89 },
+  { id: "tre-11", courseId: "tc-1", workerId: "w-mangesh", status: "in_progress", progressPct: 67, enrolledAt: iso(daysAgo(29, 9, 0)) },
+  { id: "tre-12", courseId: "tc-1", workerId: "w-deepak", status: "in_progress", progressPct: 33, enrolledAt: iso(daysAgo(13, 9, 0)) },
+  /* Plumbing members */
+  { id: "tre-8", courseId: "tc-3", workerId: "w-sandeep", status: "completed", progressPct: 100, enrolledAt: iso(daysAgo(36, 9, 0)), completedAt: iso(daysAgo(8, 14, 0)), certificateId: "SCT-2025-047", score: 82 },
+  { id: "tre-9", courseId: "tc-3", workerId: "w-rakesh", status: "in_progress", progressPct: 50, enrolledAt: iso(daysAgo(21, 9, 0)) },
+  /* Safety audit */
+  { id: "tre-10", courseId: "tc-7", workerId: "w-vikas", status: "in_progress", progressPct: 67, enrolledAt: iso(daysAgo(17, 9, 0)) },
+];
+
+/* ------------------------------------------------------------------ */
 /* Support tickets                                                     */
 /* ------------------------------------------------------------------ */
 export const SEED_TICKETS: SupportTicket[] = [
@@ -1115,6 +1258,9 @@ export const SEED_NOTIFICATIONS: AppNotification[] = [
   /* Standing orders (recurring bookings) */
   { id: "nt-30", userId: "w-rakesh", kind: "job", title: "Standing order continues", body: "Standing order: Bathroom plumbing inspection for Manish Agarwal continues — next occurrence in 4 days. You have priority; accept to confirm.", createdAt: iso(daysAgo(26, 12, 35)), read: false, route: { name: "worker-jobs" } },
   { id: "nt-31", userId: "w-meena", kind: "payment", title: "Standing-order visit settled", body: "₹1,979 for the fifth weekly deep clean (SG-8059) was added to your earnings. Your standing order with this customer continues every week.", createdAt: iso(daysAgo(9, 14, 40)), read: true, route: { name: "worker-earnings" } },
+  /* Training & upskilling hub */
+  { id: "nt-40", userId: "w-priya", kind: "verification", title: "Certificate issued", body: "Certificate SCT-2025-041 issued — Advanced Appliance Diagnosis & Repair (score 92/100). It is now visible on your customer-facing profile.", createdAt: iso(daysAgo(61, 16, 5)), read: true, route: { name: "worker-training" } },
+  { id: "nt-41", userId: "w-arjun", kind: "verification", title: "Certificate issued", body: "Certificate SCT-2025-043 issued — Kitchen Garden & Seasonal Planting (score 90/100). It is now visible on your customer-facing profile.", createdAt: iso(daysAgo(25, 13, 10)), read: true, route: { name: "worker-training" } },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -1137,6 +1283,9 @@ export const SEED_AUDIT: AuditEntry[] = [
   { id: "au-14", at: iso(daysAgo(12, 11, 15)), actor: "Executive Committee", actorRole: "admin", action: "Closed proposal PRO-2026-009 — passed (131 approve / 33 reject / 8 abstain)", entity: "Governance proposal", severity: "notice" },
   { id: "au-15", at: iso(daysAgo(26, 11, 45)), actor: "System (scheduler)", actorRole: "admin", action: "Standing order so-002 — next occurrence scheduled automatically", entity: "Booking", severity: "info" },
   { id: "au-16", at: iso(daysAgo(9, 10, 45)), actor: "System (scheduler)", actorRole: "admin", action: "Standing order so-001 — next occurrence scheduled automatically", entity: "Booking", severity: "info" },
+  { id: "au-17", at: iso(daysAgo(61, 16, 5)), actor: "Sahyog Skill Academy", actorRole: "admin", action: "Certificate SCT-2025-041 issued — Priya Sharma, Advanced Appliance Diagnosis & Repair (92/100)", entity: "Training certificate", severity: "notice" },
+  { id: "au-18", at: iso(daysAgo(21, 9, 20)), actor: "Rakesh Patil", actorRole: "worker", action: "Training enrolment — Rakesh Patil joined Modern Plumbing Fixtures & Water Harvesting", entity: "Training enrolment", severity: "info" },
+  { id: "au-19", at: iso(daysAgo(8, 14, 10)), actor: "Sahyog Skill Academy", actorRole: "admin", action: "Certificate SCT-2025-047 issued — Sandeep Gaikwad, Modern Plumbing Fixtures & Water Harvesting (82/100)", entity: "Training certificate", severity: "notice" },
 ];
 
 /* ------------------------------------------------------------------ */

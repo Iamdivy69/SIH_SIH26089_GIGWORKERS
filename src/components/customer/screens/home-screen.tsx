@@ -252,22 +252,22 @@ export function HomeScreen() {
           </SectionCard>
 
           {/* Trust strip */}
-          <section className="rounded-lg border bg-[oklch(0.975_0.012_155)] p-5">
+          <section className="rounded-lg border bg-primary-muted p-5">
             <p className="flex items-center gap-2 text-[13px] font-semibold">
-              <ShieldCheck className="h-4 w-4 text-[oklch(0.45_0.10_155)]" strokeWidth={1.9} />
+              <ShieldCheck className="h-4 w-4 text-success-deep" strokeWidth={1.9} />
               Every member is cooperative-verified
             </p>
             <ul className="mt-3 space-y-2 text-[13px] leading-snug text-muted-foreground">
               <li className="flex gap-2">
-                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" strokeWidth={1.9} />
                 ID, police record and trade checks on joining — renewed yearly
               </li>
               <li className="flex gap-2">
-                <Receipt className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                <Receipt className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" strokeWidth={1.9} />
                 Transparent pricing — every rupee of your bill is traced on the invoice
               </li>
               <li className="flex gap-2">
-                <HeartHandshake className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                <HeartHandshake className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" strokeWidth={1.9} />
                 3% of every booking goes to your member's welfare fund
               </li>
             </ul>

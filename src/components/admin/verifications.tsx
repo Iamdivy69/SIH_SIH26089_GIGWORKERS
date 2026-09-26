@@ -115,7 +115,7 @@ export function AdminVerificationsScreen() {
                           aria-current={active}
                           className={cn(
                             "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring",
-                            active && "bg-[oklch(0.965_0.02_155)]",
+                            active && "bg-primary-muted",
                           )}
                         >
                           <PersonAvatar name={w.name} size="sm" />
@@ -133,7 +133,7 @@ export function AdminVerificationsScreen() {
                                   <StatusBadge key={v.id} status={v.status} dotOnly />
                                 ))}
                               </span>
-                              <span className={cn("tnum text-[11px]", q.daysInQueue > 7 ? "text-[oklch(0.45_0.10_65)]" : "text-muted-foreground")}>
+                              <span className={cn("tnum text-[11px]", q.daysInQueue > 7 ? "text-warning-deep" : "text-muted-foreground")}>
                                 {q.daysInQueue} days in queue
                               </span>
                             </div>
@@ -317,7 +317,7 @@ function VerificationDetail({
               className="text-[13px]"
             />
             {noteRequired && note.trim().length > 0 && note.trim().length < 10 && (
-              <p className="text-xs text-[oklch(0.45_0.16_27)]">Add a little more detail (min 10 characters) so the applicant knows what to do.</p>
+              <p className="text-xs text-destructive-deep">Add a little more detail (min 10 characters) so the applicant knows what to do.</p>
             )}
           </div>
           <AlertDialogFooter>

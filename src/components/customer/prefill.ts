@@ -36,6 +36,9 @@ export interface BookingPrefill {
   workerId?: string;
   categoryId?: ServiceCategoryId;
   serviceId?: string;
+  /** "Book again" — carry over the work description and notes from a past booking. */
+  description?: string;
+  notes?: string;
 }
 
 let bookingPrefill: BookingPrefill | null = null;

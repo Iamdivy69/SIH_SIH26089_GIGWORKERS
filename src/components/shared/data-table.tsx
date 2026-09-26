@@ -20,7 +20,9 @@ export interface Column<T> {
 /**
  * House data table: 13px rows, micro-label headers, hairline dividers,
  * quiet hover. On mobile the table scrolls inside its card; pass
- * `mobileCard` to render proper stacked cards instead.
+ * `mobileCard` to render proper stacked cards instead — the cards are
+ * rendered by this component below md (single source of truth, callers
+ * do not need a separate MobileRows companion).
  */
 export function DataTable<T>({
   columns,
@@ -47,44 +49,17 @@ export function DataTable<T>({
     return <EmptyState title={emptyTitle} description={emptyDescription} className={cn("border-0 bg-transparent", className)} />;
   }
   return (
-    <div className={cn(mobileCard && "hidden md:block", !mobileCard && "block", className)}>
-      <div className="overflow-x-auto scroll-slim">
-        <table className="w-full min-w-[560px] border-collapse text-[13px]">
-          <thead>
-            <tr className="border-b border-border bg-muted/70">
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className={cn(
-                    "micro-label px-4 py-2.5 text-left font-medium",
-                    col.align === "right" && "text-right",
-                    col.align === "center" && "text-center",
-                    col.hideOnTablet && "hidden lg:table-cell",
-                    col.hideOnDesktop && "hidden xl:table-cell",
-                    col.className,
-                  )}
-                >
-                  {col.header}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={getRowKey(row)}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                className={cn(
-                  "border-b border-border/70 last:border-0",
-                  onRowClick && "cursor-pointer transition-colors hover:bg-muted/60",
-                )}
-              >
+    <div className={className}>
+      <div className={cn(mobileCard && "hidden md:block")}>
+        <div className="overflow-x-auto scroll-slim">
+          <table className="w-full min-w-[560px] border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-border bg-muted/70">
                 {columns.map((col) => (
-                  <td
+                  <th
                     key={col.key}
                     className={cn(
-                      "px-4 align-middle",
-                      dense ? "py-2" : "py-3",
+                      "micro-label px-4 py-2.5 text-left font-medium",
                       col.align === "right" && "text-right",
                       col.align === "center" && "text-center",
                       col.hideOnTablet && "hidden lg:table-cell",
@@ -92,19 +67,58 @@ export function DataTable<T>({
                       col.className,
                     )}
                   >
-                    {col.cell(row)}
-                  </td>
+                    {col.header}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr
+                  key={getRowKey(row)}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={cn(
+                    "border-b border-border/70 last:border-0",
+                    onRowClick && "cursor-pointer transition-colors hover:bg-muted/60",
+                  )}
+                >
+                  {columns.map((col) => (
+                    <td
+                      key={col.key}
+                      className={cn(
+                        "px-4 align-middle",
+                        dense ? "py-2" : "py-3",
+                        col.align === "right" && "text-right",
+                        col.align === "center" && "text-center",
+                        col.hideOnTablet && "hidden lg:table-cell",
+                        col.hideOnDesktop && "hidden xl:table-cell",
+                        col.className,
+                      )}
+                    >
+                      {col.cell(row)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
+      {mobileCard && (
+        <div className="divide-y md:hidden">
+          {rows.map((row) => (
+            <div key={getRowKey(row)} className="px-1 py-3 first:pt-0 last:pb-0">
+              {mobileCard(row)}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-/** Mobile companion list for DataTable (rendered below md). */
+/** Mobile companion list for DataTable (rendered below md).
+ * Kept for direct list usage; DataTable renders `mobileCard` itself below md. */
 export function MobileRows<T>({ rows, getRowKey, render }: { rows: T[]; getRowKey: (row: T) => string; render: (row: T) => ReactNode }) {
   if (rows.length === 0) return null;
   return (

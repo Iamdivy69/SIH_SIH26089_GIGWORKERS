@@ -27,7 +27,7 @@ export function RatingStars({
             height={size}
             className={cn(
               i <= Math.round(value)
-                ? "fill-[oklch(0.72_0.115_75)] text-[oklch(0.72_0.115_75)]"
+                ? "fill-chart-4 text-chart-4"
                 : "fill-transparent text-muted-foreground/40",
             )}
           />

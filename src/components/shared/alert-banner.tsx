@@ -20,18 +20,19 @@ export function AlertBanner({
   onAction?: () => void;
   className?: string;
 }) {
+  /* Semantic tokens — surface, border and 3px severity accent all adapt to dark. */
   const styles = {
     critical: {
-      wrap: "border-[oklch(0.90_0.04_27)] border-l-[3px] border-l-[oklch(0.625_0.16_27)] bg-[oklch(0.955_0.018_27)]",
-      icon: "text-[oklch(0.525_0.185_27)]",
+      wrap: "border-destructive/40 border-l-[3px] border-l-destructive bg-destructive-muted",
+      icon: "text-destructive",
     },
     warning: {
-      wrap: "border-[oklch(0.90_0.06_80)] border-l-[3px] border-l-[oklch(0.70_0.11_75)] bg-[oklch(0.965_0.035_85)]",
-      icon: "text-[oklch(0.55_0.12_65)]",
+      wrap: "border-warning/40 border-l-[3px] border-l-warning bg-warning-muted",
+      icon: "text-warning",
     },
     info: {
-      wrap: "border-[oklch(0.89_0.015_240)] border-l-[3px] border-l-[oklch(0.60_0.03_240)] bg-[oklch(0.955_0.008_240)]",
-      icon: "text-[oklch(0.47_0.03_240)]",
+      wrap: "border-info/40 border-l-[3px] border-l-info bg-info-muted",
+      icon: "text-info",
     },
   }[severity];
   const Icon = severity === "info" ? Info : severity === "warning" ? AlertTriangle : CircleAlert;

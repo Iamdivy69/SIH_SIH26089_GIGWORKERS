@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Award,
   BadgeCheck,
   CalendarCheck,
   Check,
@@ -117,7 +118,7 @@ export function WorkerScreen({ workerId }: { workerId: string }) {
               }
             >
               <Heart
-                className={cn("h-4 w-4", saved && "fill-[oklch(0.525_0.185_27)] text-[oklch(0.525_0.185_27)]")}
+                className={cn("h-4 w-4", saved && "fill-destructive text-destructive")}
                 strokeWidth={1.9}
               />
               {saved ? "Saved" : "Save"}
@@ -219,13 +220,45 @@ export function WorkerScreen({ workerId }: { workerId: string }) {
                 </li>
               ))}
             </ul>
+            {/* Cooperative training — credentials earned through the co-op's funded courses */}
+            {data.certificates.length > 0 && (
+              <div className="mt-4 border-t pt-4">
+                <p className="micro-label mb-2">Cooperative training — certified</p>
+                <ul className="space-y-2">
+                  {data.certificates.map((c) => (
+                    <li
+                      key={c.certificateId}
+                      className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1.5 rounded-md border border-success/40 bg-success-muted/40 px-3 py-2.5"
+                    >
+                      <span className="flex min-w-0 items-start gap-2.5">
+                        <Award className="mt-0.5 h-4 w-4 shrink-0 text-success" strokeWidth={1.9} aria-hidden />
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-medium leading-snug">{c.courseTitle}</span>
+                          <span className="tnum block text-xs text-muted-foreground">
+                            {c.certificateId} · {dateFull(c.completedAt)}
+                            {c.score !== undefined ? ` · score ${c.score}/100` : ""}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="inline-flex shrink-0 items-center rounded-sm border border-success/40 bg-card px-1.5 py-0.5 text-[11px] font-medium text-success">
+                        Co-operative certified
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                  Earned through the cooperative's funded training programme — certificates are issued only when every course module
+                  is completed.
+                </p>
+              </div>
+            )}
             {worker.certifications.length > 0 && (
               <div className="mt-4 border-t pt-4">
                 <p className="micro-label mb-2">Certifications</p>
                 <ul className="space-y-2.5">
                   {worker.certifications.map((c) => (
                     <li key={c.id} className="flex items-start gap-2.5">
-                      <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                      <BadgeCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" strokeWidth={1.9} />
                       <div className="min-w-0">
                         <p className="text-[13px] font-medium leading-snug">{c.name}</p>
                         <p className="tnum text-xs text-muted-foreground">
@@ -266,7 +299,7 @@ export function WorkerScreen({ workerId }: { workerId: string }) {
                         return (
                           <td key={d} className="px-2 py-2.5 text-center">
                             {covered ? (
-                              <Check className="mx-auto h-4 w-4 text-[oklch(0.5_0.105_155)]" strokeWidth={2.2} />
+                              <Check className="mx-auto h-4 w-4 text-success" strokeWidth={2.2} />
                             ) : (
                               <span className="text-muted-foreground/40">—</span>
                             )}
@@ -398,25 +431,25 @@ export function WorkerScreen({ workerId }: { workerId: string }) {
           <SectionCard title="Why you can trust this member">
             <ul className="space-y-3 text-[13px] leading-snug">
               <li className="flex gap-2.5">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" strokeWidth={1.9} />
                 <span>
                   <span className="font-medium">Cooperative-verified.</span> All {statusLabel("verified").toLowerCase()} checks passed before accepting bookings.
                 </span>
               </li>
               <li className="flex gap-2.5">
-                <Users className="mt-0.5 h-4 w-4 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                <Users className="mt-0.5 h-4 w-4 shrink-0 text-success" strokeWidth={1.9} />
                 <span>
                   <span className="font-medium">Member-owner.</span> Holds membership {worker.cooperativeMemberId} with voting rights — quality is their own business.
                 </span>
               </li>
               <li className="flex gap-2.5">
-                <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" strokeWidth={1.9} />
                 <span>
                   <span className="font-medium">Track record.</span> {num(worker.completedJobs)} completed services · {worker.onTimeRate}% on time.
                 </span>
               </li>
               <li className="flex gap-2.5">
-                <Timer className="mt-0.5 h-4 w-4 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                <Timer className="mt-0.5 h-4 w-4 shrink-0 text-success" strokeWidth={1.9} />
                 <span>
                   <span className="font-medium">Responsive.</span> Typically replies within {worker.responseMins} minutes.
                 </span>

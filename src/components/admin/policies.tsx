@@ -357,7 +357,7 @@ function PreviewRow({
         className={cn(
           "tnum font-medium",
           strong && "text-[15px] font-semibold",
-          tone === "positive" && "text-[oklch(0.40_0.09_155)]",
+          tone === "positive" && "text-success-deep",
         )}
       >
         {value}

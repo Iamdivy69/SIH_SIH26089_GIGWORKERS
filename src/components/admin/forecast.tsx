@@ -86,15 +86,15 @@ function gapTone(predicted: number, available: number): GapTone {
 }
 
 const GAP_CELL: Record<GapTone, string> = {
-  ok: "border-[oklch(0.88_0.05_155)] bg-[oklch(0.975_0.014_155)]",
-  watch: "border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)]",
-  critical: "border-[oklch(0.90_0.04_27)] bg-[oklch(0.965_0.022_27)]",
+  ok: "border-success/40 bg-primary-muted",
+  watch: "border-warning/40 bg-warning-muted",
+  critical: "border-destructive/40 bg-destructive-muted",
 };
 
 const GAP_TEXT: Record<GapTone, string> = {
-  ok: "text-[oklch(0.40_0.09_155)]",
-  watch: "text-[oklch(0.45_0.10_65)]",
-  critical: "text-[oklch(0.45_0.16_27)]",
+  ok: "text-success-deep",
+  watch: "text-warning-deep",
+  critical: "text-destructive-deep",
 };
 
 function GapCell({ cell, compact = false }: { cell: MatrixCell; compact?: boolean }) {
@@ -234,7 +234,7 @@ export function AdminForecastScreen() {
               sub: (
                 <>
                   bookings · 7 days
-                  <span className={cn("tnum ml-1 font-medium", weekDelta >= 0 ? "text-[oklch(0.40_0.09_155)]" : "text-[oklch(0.45_0.16_27)]")}>
+                  <span className={cn("tnum ml-1 font-medium", weekDelta >= 0 ? "text-success-deep" : "text-destructive-deep")}>
                     {weekDelta >= 0 ? "+" : ""}
                     {weekDelta}% w/w
                   </span>
@@ -265,13 +265,13 @@ export function AdminForecastScreen() {
         />
         <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-[3px] border border-[oklch(0.88_0.05_155)] bg-[oklch(0.975_0.014_155)]" /> Covered
+            <span className="h-2.5 w-2.5 rounded-[3px] border border-success/40 bg-primary-muted" /> Covered
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-[3px] border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)]" /> Gap ≤ 5
+            <span className="h-2.5 w-2.5 rounded-[3px] border border-warning/40 bg-warning-muted" /> Gap ≤ 5
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-[3px] border border-[oklch(0.90_0.04_27)] bg-[oklch(0.965_0.022_27)]" /> Gap &gt; 5
+            <span className="h-2.5 w-2.5 rounded-[3px] border border-destructive/40 bg-destructive-muted" /> Gap &gt; 5
           </span>
         </div>
       </div>
@@ -317,7 +317,7 @@ export function AdminForecastScreen() {
                   </div>
                   <div>
                     <p className="micro-label">Gap</p>
-                    <p className="tnum mt-0.5 text-lg font-semibold leading-tight text-[oklch(0.45_0.16_27)]">+{num(p.gap)}</p>
+                    <p className="tnum mt-0.5 text-lg font-semibold leading-tight text-destructive-deep">+{num(p.gap)}</p>
                   </div>
                 </div>
                 <p className="mt-3 rounded-md bg-muted/60 px-3 py-2 text-[13px] leading-relaxed">{p.recommendedAction}.</p>

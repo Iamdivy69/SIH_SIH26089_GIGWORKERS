@@ -189,7 +189,7 @@ export function ProfileScreen() {
 
           <SectionCard title="Language" description="The cooperative serves neighbourhoods in their own languages.">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-sm border border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)] px-2.5 py-1 text-[13px] font-medium text-[oklch(0.40_0.09_155)]">
+              <span className="inline-flex items-center gap-1.5 rounded-sm border border-primary/40 bg-success-muted px-2.5 py-1 text-[13px] font-medium text-success-deep">
                 <Check className="h-3.5 w-3.5" strokeWidth={2.2} /> English
               </span>
               <span className="rounded-sm border px-2.5 py-1 text-[13px] text-muted-foreground">मराठी</span>

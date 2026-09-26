@@ -31,14 +31,14 @@ export function WorkerVerification() {
           return (
             <div className="space-y-6">
               {/* Overall banner */}
-              <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[oklch(0.88_0.05_155)] bg-[oklch(0.965_0.02_155)] p-5">
+              <section className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-success/40 bg-primary-muted p-5">
                 <div className="flex items-center gap-4">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-md bg-[oklch(0.5_0.105_155)] text-white">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-md bg-success text-white">
                     <ShieldCheck className="h-5 w-5" strokeWidth={1.9} aria-hidden />
                   </span>
                   <div>
-                    <p className="text-[15px] font-semibold text-[oklch(0.40_0.09_155)]">Verified member — all checks complete</p>
-                    <p className="tnum mt-0.5 text-[13px] text-[oklch(0.40_0.09_155)]/80">
+                    <p className="text-[15px] font-semibold text-success-deep">Verified member — all checks complete</p>
+                    <p className="tnum mt-0.5 text-[13px] text-success-deep/80">
                       {data.worker.cooperativeMemberId} · verified since {earliest ? dateFull(earliest) : "—"}
                     </p>
                   </div>

@@ -61,7 +61,7 @@ export function WorkerCard({
               {worker.locality} · <span className="tnum">{worker.distanceKm} km</span>
             </span>
             {today && (
-              <span className="inline-flex items-center gap-1 font-medium text-[oklch(0.40_0.09_155)]">
+              <span className="inline-flex items-center gap-1 font-medium text-success-deep">
                 <BadgeCheck className="h-3.5 w-3.5" strokeWidth={1.9} /> Available today
               </span>
             )}

@@ -11,6 +11,7 @@ import { WorkerWelfare } from "./screens/worker-welfare";
 import { WorkerGovernance } from "./screens/worker-governance";
 import { WorkerVerification } from "./screens/worker-verification";
 import { WorkerSkills } from "./screens/worker-skills";
+import { WorkerTrainingScreen } from "./training";
 import { WorkerSupport } from "./screens/worker-support";
 import { WorkerProfile } from "./screens/worker-profile";
 import { NotificationCenterScreen } from "@/components/shared/notification-center";
@@ -45,6 +46,8 @@ export function WorkerApp({ route }: { route: AppRoute }) {
       return <WorkerVerification />;
     case "worker-skills":
       return <WorkerSkills />;
+    case "worker-training":
+      return <WorkerTrainingScreen />;
     case "worker-support":
       return <WorkerSupport />;
     case "worker-profile":

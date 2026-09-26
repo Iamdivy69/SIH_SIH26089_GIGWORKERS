@@ -31,7 +31,7 @@ function ScheduleChip({ booking }: { booking: Booking }) {
         <StatusBadge status={booking.status} dotOnly />
         <span className="tnum">{duration(booking.durationMin)}</span>
         {booking.recurrence && (
-          <span className="inline-flex items-center gap-0.5 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1 py-px text-[10px] font-medium text-[oklch(0.45_0.10_65)]">
+          <span className="inline-flex items-center gap-0.5 rounded-sm border border-warning/40 bg-warning-muted px-1 py-px text-[10px] font-medium text-warning-deep">
             <Repeat className="h-2.5 w-2.5" strokeWidth={1.9} aria-hidden />
             {booking.recurrence === "weekly" ? "weekly" : "monthly"}
           </span>

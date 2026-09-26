@@ -14,13 +14,15 @@ import type {
 
 type Tone = "success" | "warning" | "destructive" | "info" | "neutral" | "primary";
 
+/* Tone classes are semantic tokens (globals.css :root + .dark) so every badge
+   adapts to dark mode. `*-deep` = readable text on the matching `*-muted` tint. */
 const TONES: Record<Tone, { dot: string; text: string; bg: string; border: string }> = {
-  success: { dot: "bg-[oklch(0.5_0.105_155)]", text: "text-[oklch(0.40_0.09_155)]", bg: "bg-[oklch(0.945_0.034_155)]", border: "border-[oklch(0.88_0.05_155)]" },
-  warning: { dot: "bg-[oklch(0.62_0.122_65)]", text: "text-[oklch(0.45_0.10_65)]", bg: "bg-[oklch(0.955_0.043_80)]", border: "border-[oklch(0.90_0.06_80)]" },
-  destructive: { dot: "bg-[oklch(0.525_0.185_27)]", text: "text-[oklch(0.45_0.16_27)]", bg: "bg-[oklch(0.945_0.028_27)]", border: "border-[oklch(0.90_0.04_27)]" },
-  info: { dot: "bg-[oklch(0.47_0.03_240)]", text: "text-[oklch(0.40_0.03_240)]", bg: "bg-[oklch(0.94_0.012_240)]", border: "border-[oklch(0.89_0.015_240)]" },
+  success: { dot: "bg-success", text: "text-success-deep", bg: "bg-success-muted", border: "border-success/40" },
+  warning: { dot: "bg-warning", text: "text-warning-deep", bg: "bg-warning-muted", border: "border-warning/40" },
+  destructive: { dot: "bg-destructive", text: "text-destructive-deep", bg: "bg-destructive-muted", border: "border-destructive/40" },
+  info: { dot: "bg-info", text: "text-info-deep", bg: "bg-info-muted", border: "border-info/40" },
   neutral: { dot: "bg-muted-foreground", text: "text-muted-foreground", bg: "bg-muted", border: "border-border" },
-  primary: { dot: "bg-primary", text: "text-primary", bg: "bg-[oklch(0.938_0.016_155)]", border: "border-[oklch(0.88_0.03_155)]" },
+  primary: { dot: "bg-primary", text: "text-primary", bg: "bg-accent", border: "border-primary/40" },
 };
 
 const STATUS_TONE: Record<string, Tone> = {

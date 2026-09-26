@@ -194,7 +194,7 @@ export function HBarList({ data, currency, max, className }: { data: { label: st
             <span className="tnum shrink-0 font-medium">{currency ? money(d.value) : num(d.value)}</span>
           </div>
           <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-[oklch(0.62_0.088_158)]" style={{ width: `${(d.value / top) * 100}%` }} />
+            <div className="h-full rounded-full bg-chart-2" style={{ width: `${(d.value / top) * 100}%` }} />
           </div>
         </li>
       ))}

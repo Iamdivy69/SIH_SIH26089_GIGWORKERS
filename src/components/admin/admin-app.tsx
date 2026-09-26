@@ -3,6 +3,7 @@
 import type { AppRoute } from "@/store/app-store";
 import { AdminOverviewScreen } from "./overview";
 import { AdminForecastScreen } from "./forecast";
+import { AdminTrainingScreen } from "./training";
 import { AdminWorkersScreen } from "./workers";
 import { AdminVerificationsScreen } from "./verifications";
 import { AdminBookingsScreen } from "./bookings";
@@ -21,6 +22,8 @@ export function AdminApp({ route }: { route: AppRoute }) {
       return <AdminOverviewScreen />;
     case "admin-forecast":
       return <AdminForecastScreen />;
+    case "admin-training":
+      return <AdminTrainingScreen />;
     case "admin-workers":
       return <AdminWorkersScreen />;
     case "admin-verifications":

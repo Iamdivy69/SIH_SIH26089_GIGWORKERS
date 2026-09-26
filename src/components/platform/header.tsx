@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
-import { Bell, Check, ChevronDown, ChevronRight, Menu, MessageSquareWarning } from "lucide-react";
+import { useMemo, useSyncExternalStore } from "react";
+import { Bell, Check, ChevronDown, ChevronRight, Menu, MessageSquareWarning, Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,13 +23,52 @@ import { Sidebar } from "./sidebar";
 
 const KIND_ICON: Record<string, { icon: typeof Bell; className: string }> = {
   job: { icon: Bell, className: "text-primary" },
-  payment: { icon: Check, className: "text-[oklch(0.5_0.105_155)]" },
-  verification: { icon: Check, className: "text-[oklch(0.47_0.03_240)]" },
-  governance: { icon: MessageSquareWarning, className: "text-[oklch(0.62_0.122_65)]" },
+  payment: { icon: Check, className: "text-success" },
+  verification: { icon: Check, className: "text-info" },
+  governance: { icon: MessageSquareWarning, className: "text-warning" },
   booking: { icon: Bell, className: "text-primary" },
   system: { icon: Bell, className: "text-muted-foreground" },
-  support: { icon: MessageSquareWarning, className: "text-[oklch(0.525_0.185_27)]" },
+  support: { icon: MessageSquareWarning, className: "text-destructive" },
 };
+
+/** Hydration-safe "is client" flag — false during SSR/hydration, true after mount. */
+const emptySubscribe = () => () => {};
+function useMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
+}
+
+/**
+ * Theme toggle — light is the default corporate identity; dark is an explicit
+ * user choice that persists across reloads (next-themes localStorage).
+ * The mounted guard keeps SSR and the first client render identical (light),
+ * so the icon swap after hydration never triggers a mismatch warning.
+ */
+export function ThemeToggle({ variant = "icon", className }: { variant?: "icon" | "text"; className?: string }) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const mounted = useMounted();
+  const dark = mounted && resolvedTheme === "dark";
+  const label = dark ? "Switch to light theme" : "Switch to dark theme";
+  const toggle = () => setTheme(dark ? "light" : "dark");
+  if (variant === "text") {
+    return (
+      <Button variant="outline" size="sm" className={cn("h-8 gap-2 px-3 text-[13px] font-medium", className)} onClick={toggle} aria-label={label}>
+        {dark ? <Sun className="h-4 w-4" strokeWidth={1.9} /> : <Moon className="h-4 w-4" strokeWidth={1.9} />}
+        {dark ? "Light mode" : "Dark mode"}
+        <span className="sr-only">{label}</span>
+      </Button>
+    );
+  }
+  return (
+    <Button variant="ghost" size="icon" className={cn("h-9 w-9 shrink-0", className)} onClick={toggle} aria-label={label} title={label}>
+      {dark ? <Moon className="h-[18px] w-[18px]" strokeWidth={1.9} /> : <Sun className="h-[18px] w-[18px]" strokeWidth={1.9} />}
+      <span className="sr-only">{label}</span>
+    </Button>
+  );
+}
 
 export function Header({ badges }: { badges: Record<string, number> }) {
   const role = useRole();
@@ -64,7 +104,7 @@ export function Header({ badges }: { badges: Record<string, number> }) {
 
       {/* Prototype indicator */}
       <span className="hidden items-center gap-1.5 rounded-sm border border-dashed px-2 py-1 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground lg:inline-flex">
-        <span className="h-1.5 w-1.5 rounded-full bg-[oklch(0.62_0.122_65)]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-warning" />
         Demo · simulated data
       </span>
 
@@ -82,6 +122,9 @@ export function Header({ badges }: { badges: Record<string, number> }) {
           <DropdownMenuItem className="justify-between text-[13px]">हिंदी <span className="text-[10px] text-muted-foreground">roadmap</span></DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* Theme */}
+      <ThemeToggle />
 
       {/* Notifications */}
       <Sheet open={useAppStore((s) => s.notificationsOpen)} onOpenChange={(open) => useAppStore.getState().setNotificationsOpen(open)}>
@@ -119,7 +162,7 @@ export function Header({ badges }: { badges: Record<string, number> }) {
                     key={n.id}
                     className={cn(
                       "flex w-full gap-3 border-b border-border/60 px-5 py-3.5 text-left transition-colors hover:bg-muted/50",
-                      !n.read && "bg-[oklch(0.965_0.018_155)]",
+                      !n.read && "bg-primary-muted",
                     )}
                     onClick={() => {
                       markRead.mutate({ ids: [n.id] });

@@ -3,6 +3,7 @@
 import { ArrowRight, Building2, Landmark, ShieldCheck, TrendingUp, User, Vote, Wallet, HeartPulse } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "./brand";
+import { ThemeToggle } from "./header";
 import { ROLE_HOME, useAppStore } from "@/store/app-store";
 import { useSession } from "@/hooks/use-api";
 import { PersonAvatar } from "@/components/shared";
@@ -66,6 +67,9 @@ export function WelcomeScreen() {
           <div className="text-left sm:text-right">
             <p className="micro-label">Smart India Hackathon 2025 · SIH26089</p>
             <p className="mt-1 text-[12.5px] text-muted-foreground">Household & community services, run as a worker cooperative</p>
+            <div className="mt-3 flex sm:justify-end">
+              <ThemeToggle variant="text" />
+            </div>
           </div>
         </header>
 
@@ -85,7 +89,7 @@ export function WelcomeScreen() {
                   <p className="text-[11px] text-muted-foreground">reliable, transparent services</p>
                 </div>
                 <span className="self-center text-muted-foreground">↕</span>
-                <div className="rounded-md border border-primary/30 bg-[oklch(0.965_0.015_155)] px-3.5 py-2.5 text-center">
+                <div className="rounded-md border border-primary/30 bg-primary-muted px-3.5 py-2.5 text-center">
                   <p className="font-semibold text-primary">Sahyog Cooperative</p>
                   <p className="text-[11px] text-muted-foreground">platform + worker body, 216 member-owners</p>
                 </div>
@@ -124,7 +128,7 @@ export function WelcomeScreen() {
                 <button
                   key={card.role}
                   onClick={() => enter(card.role)}
-                  className="group flex flex-col rounded-lg border bg-card p-5 text-left transition-colors hover:border-primary/40 hover:bg-[oklch(0.985_0.008_155)]"
+                  className="group flex flex-col rounded-lg border bg-card p-5 text-left transition-colors hover:border-primary/40 hover:bg-primary-muted/50"
                 >
                   <div className="flex items-center justify-between">
                     <span className="inline-flex h-9 w-9 items-center justify-center rounded-md border bg-muted/50">
@@ -141,7 +145,7 @@ export function WelcomeScreen() {
                   <ul className="mt-4 space-y-1.5 border-t pt-3">
                     {card.points.map((pt) => (
                       <li key={pt} className="flex items-start gap-2 text-[12.5px] text-foreground/85">
-                        <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" />
+                        <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
                         {pt}
                       </li>
                     ))}

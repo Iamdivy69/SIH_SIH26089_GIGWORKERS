@@ -236,7 +236,7 @@ const workerColumns: Column<AdminWorker>[] = [
     key: "ontime",
     header: "On-time",
     align: "right",
-    cell: (w) => <span className={cn("tnum", w.onTimeRate >= 90 ? "text-[oklch(0.40_0.09_155)]" : "text-foreground")}>{w.onTimeRate > 0 ? pctLabel(w.onTimeRate) : "—"}</span>,
+    cell: (w) => <span className={cn("tnum", w.onTimeRate >= 90 ? "text-success-deep" : "text-foreground")}>{w.onTimeRate > 0 ? pctLabel(w.onTimeRate) : "—"}</span>,
     hideOnTablet: true,
   },
   {

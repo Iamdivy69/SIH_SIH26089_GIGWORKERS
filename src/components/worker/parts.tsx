@@ -96,7 +96,7 @@ export function StandingOrderTag({ recurrence, className }: { recurrence: "weekl
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]",
+        "inline-flex items-center gap-1 rounded-sm border border-warning/40 bg-warning-muted px-1.5 py-0.5 text-[11px] font-medium text-warning-deep",
         className,
       )}
     >
@@ -111,7 +111,7 @@ export function StandingOrderNote({ recurrence, className }: { recurrence: "week
   return (
     <p
       className={cn(
-        "flex items-start gap-2 rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-3 py-2 text-xs leading-relaxed text-[oklch(0.45_0.10_65)]",
+        "flex items-start gap-2 rounded-md border border-warning/40 bg-warning-muted px-3 py-2 text-xs leading-relaxed text-warning-deep",
         className,
       )}
     >
@@ -128,7 +128,7 @@ export function NetEarningsLine({ net, welfare, className }: { net: number; welf
     <p className={cn("flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5", className)}>
       <span className="micro-label">Net earnings</span>
       <span className="tnum text-lg font-semibold tracking-tight">{money(net)}</span>
-      <span className="tnum text-xs font-medium text-[oklch(0.45_0.10_155)]">+ {money(welfare)} welfare credit</span>
+      <span className="tnum text-xs font-medium text-success-deep">+ {money(welfare)} welfare credit</span>
     </p>
   );
 }
@@ -335,7 +335,7 @@ export function JobRowCard({
               {duration(booking.durationMin)}
             </span>
             {booking.recurrence && (
-              <span className="inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-px text-[10.5px] font-medium text-[oklch(0.45_0.10_65)]">
+              <span className="inline-flex items-center gap-1 rounded-sm border border-warning/40 bg-warning-muted px-1.5 py-px text-[10.5px] font-medium text-warning-deep">
                 <Repeat className="h-3 w-3" strokeWidth={1.9} aria-hidden />
                 {recurrenceLabel(booking.recurrence).toLowerCase()}
               </span>
@@ -382,7 +382,7 @@ export function RequirementLine({ done, children }: { done: boolean; children: R
       <span
         className={cn(
           "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
-          done ? "border-transparent bg-[oklch(0.5_0.105_155)] text-white" : "border-border bg-muted/60 text-muted-foreground",
+          done ? "border-transparent bg-success text-white" : "border-border bg-muted/60 text-muted-foreground",
         )}
         aria-hidden
       >

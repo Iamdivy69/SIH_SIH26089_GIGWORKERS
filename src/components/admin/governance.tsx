@@ -110,7 +110,7 @@ export function AdminGovernanceScreen() {
               </div>
               <div>
                 <p className="micro-label">Patronage bonus distributed</p>
-                <p className="tnum mt-0.5 text-xl font-semibold tracking-tight text-[oklch(0.40_0.09_155)]">
+                <p className="tnum mt-0.5 text-xl font-semibold tracking-tight text-success-deep">
                   {moneyCompact(d.dividend.patronageBonus)}
                 </p>
               </div>
@@ -233,11 +233,11 @@ function ProposalCard({ proposal: p }: { proposal: GovernanceProposal }) {
           <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground">{p.summary}</p>
         </div>
         <div className="shrink-0 text-right">
-          <p className={cn("tnum text-lg font-semibold leading-tight", quorumMet ? "text-[oklch(0.40_0.09_155)]" : "text-[oklch(0.45_0.10_65)]")}>
+          <p className={cn("tnum text-lg font-semibold leading-tight", quorumMet ? "text-success-deep" : "text-warning-deep")}>
             {pctLabel(p.participationPct)}
           </p>
           <p className="micro-label mt-0.5">participation</p>
-          <p className={cn("tnum mt-1.5 text-[11px]", quorumMet ? "text-[oklch(0.40_0.09_155)]" : "text-muted-foreground")}>
+          <p className={cn("tnum mt-1.5 text-[11px]", quorumMet ? "text-success-deep" : "text-muted-foreground")}>
             {quorumMet ? "quorum met" : `quorum ${pctLabel(p.quorumPct)}`}
           </p>
         </div>
@@ -247,16 +247,16 @@ function ProposalCard({ proposal: p }: { proposal: GovernanceProposal }) {
         <div>
           <p className="micro-label mb-2">Tally — {num(totalVotes)} votes cast</p>
           <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div className="bg-[oklch(0.62_0.10_158)]" style={{ width: `${(p.votes.approve / Math.max(1, totalVotes)) * 100}%` }} />
-            <div className="bg-[oklch(0.525_0.185_27)]" style={{ width: `${(p.votes.reject / Math.max(1, totalVotes)) * 100}%` }} />
+            <div className="bg-chart-2" style={{ width: `${(p.votes.approve / Math.max(1, totalVotes)) * 100}%` }} />
+            <div className="bg-destructive" style={{ width: `${(p.votes.reject / Math.max(1, totalVotes)) * 100}%` }} />
             <div className="bg-muted-foreground/40" style={{ width: `${(p.votes.abstain / Math.max(1, totalVotes)) * 100}%` }} />
           </div>
           <dl className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="tnum flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-[2px] bg-[oklch(0.62_0.10_158)]" /> Approve {num(p.votes.approve)}
+              <span className="h-2 w-2 rounded-[2px] bg-chart-2" /> Approve {num(p.votes.approve)}
             </span>
             <span className="tnum flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-[2px] bg-[oklch(0.525_0.185_27)]" /> Reject {num(p.votes.reject)}
+              <span className="h-2 w-2 rounded-[2px] bg-destructive" /> Reject {num(p.votes.reject)}
             </span>
             <span className="tnum flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-[2px] bg-muted-foreground/40" /> Abstain {num(p.votes.abstain)}

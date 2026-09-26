@@ -42,15 +42,15 @@ const FILTERS: NotificationFilter[] = [
   { id: "system", label: "System & support", kinds: ["system", "support"] },
 ];
 
-/** Leading icon chip per notification kind — semantic, muted tones. */
+/** Leading icon chip per notification kind — semantic, muted tones (dark-adaptive). */
 const KIND_META: Record<NotificationKind, { icon: LucideIcon; chip: string; tone: string }> = {
-  job: { icon: CalendarCheck, chip: "border-[oklch(0.88_0.03_155)] bg-[oklch(0.938_0.016_155)]", tone: "text-primary" },
-  booking: { icon: CalendarCheck, chip: "border-[oklch(0.88_0.03_155)] bg-[oklch(0.938_0.016_155)]", tone: "text-primary" },
-  payment: { icon: CircleDollarSign, chip: "border-[oklch(0.88_0.05_155)] bg-[oklch(0.945_0.034_155)]", tone: "text-[oklch(0.40_0.09_155)]" },
-  governance: { icon: Vote, chip: "border-[oklch(0.89_0.015_240)] bg-[oklch(0.94_0.012_240)]", tone: "text-[oklch(0.47_0.03_240)]" },
-  verification: { icon: ShieldAlert, chip: "border-[oklch(0.89_0.015_240)] bg-[oklch(0.94_0.012_240)]", tone: "text-[oklch(0.47_0.03_240)]" },
+  job: { icon: CalendarCheck, chip: "border-primary/40 bg-accent", tone: "text-primary" },
+  booking: { icon: CalendarCheck, chip: "border-primary/40 bg-accent", tone: "text-primary" },
+  payment: { icon: CircleDollarSign, chip: "border-success/40 bg-success-muted", tone: "text-success-deep" },
+  governance: { icon: Vote, chip: "border-info/40 bg-info-muted", tone: "text-info" },
+  verification: { icon: ShieldAlert, chip: "border-info/40 bg-info-muted", tone: "text-info" },
   system: { icon: Settings, chip: "border-border bg-muted/50", tone: "text-muted-foreground" },
-  support: { icon: LifeBuoy, chip: "border-[oklch(0.90_0.06_80)] bg-[oklch(0.955_0.043_80)]", tone: "text-[oklch(0.55_0.12_65)]" },
+  support: { icon: LifeBuoy, chip: "border-warning/40 bg-warning-muted", tone: "text-warning" },
 };
 
 const ROLE_META: Record<Role, { eyebrow: string; description: string; emptyAction: { label: string; route: string } }> = {
@@ -287,7 +287,7 @@ function NotificationRow({ n, onOpen }: { n: AppNotification; onOpen: (n: AppNot
         onClick={() => onOpen(n)}
         className={cn(
           "flex w-full items-start gap-3.5 rounded-md px-5 py-3.5 text-left transition-colors hover:bg-muted/50",
-          !n.read && "bg-[oklch(0.965_0.018_155)] shadow-[inset_3px_0_0_0_var(--primary)]",
+          !n.read && "bg-primary-muted shadow-[inset_3px_0_0_0_var(--primary)]",
         )}
       >
         <span className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border", meta.chip)}>

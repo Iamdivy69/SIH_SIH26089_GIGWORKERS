@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Repeat } from "lucide-react";
+import { RotateCcw, ChevronRight, Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar, PriceTotal, StatusBadge } from "@/components/shared";
 import { dateTimeLabel } from "@/lib/format";
@@ -14,7 +14,7 @@ export function StandingOrderChip({ recurrence, className }: { recurrence: Booki
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-sm border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.45_0.10_65)]",
+        "inline-flex items-center gap-1 rounded-sm border border-warning/40 bg-warning-muted px-1.5 py-0.5 text-[11px] font-medium text-warning-deep",
         className,
       )}
     >
@@ -29,12 +29,15 @@ export function BookingCard({
   booking,
   worker,
   onView,
+  onBookAgain,
   compact,
   className,
 }: {
   booking: Booking;
   worker?: Worker;
   onView: () => void;
+  /** Offered on history bookings — restarts the flow with the same service, member and description. */
+  onBookAgain?: () => void;
   compact?: boolean;
   className?: string;
 }) {
@@ -64,10 +67,23 @@ export function BookingCard({
           <p className="micro-label mb-0.5 hidden sm:block">Total</p>
           <PriceTotal price={booking.price} />
         </div>
-        <Button variant="outline" size="sm" onClick={onView} aria-label={`View booking ${booking.reference}`}>
-          View
-          <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
-        </Button>
+        <div className="flex items-center gap-2">
+          {onBookAgain && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onBookAgain}
+              aria-label={`Book ${booking.title} again with the same member`}
+              title="Start a new request with this service, member and description"
+            >
+              <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.9} /> Book again
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onView} aria-label={`View booking ${booking.reference}`}>
+            View
+            <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
+          </Button>
+        </div>
       </div>
     </article>
   );

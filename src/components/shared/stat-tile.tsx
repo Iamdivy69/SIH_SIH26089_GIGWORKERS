@@ -31,7 +31,7 @@ export function StatTile({
     <div
       className={cn(
         "rounded-lg border bg-card px-5 py-4",
-        emphasis && "border-primary/25 bg-[oklch(0.975_0.012_155)]",
+        emphasis && "border-primary/25 bg-primary-muted",
         className,
       )}
     >
@@ -45,8 +45,8 @@ export function StatTile({
                 <span
                   className={cn(
                     "tnum pt-px font-medium",
-                    deltaTone === "up" && "text-[oklch(0.45_0.10_155)]",
-                    deltaTone === "down" && "text-[oklch(0.50_0.17_27)]",
+                    deltaTone === "up" && "text-success-deep",
+                    deltaTone === "down" && "text-destructive",
                   )}
                 >
                   {delta}

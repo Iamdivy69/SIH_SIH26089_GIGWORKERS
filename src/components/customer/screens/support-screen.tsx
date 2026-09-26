@@ -170,8 +170,8 @@ function TicketDialog({ ticket, onClose }: { ticket: SupportTicket | null; onClo
             </div>
           ))}
           {ticket.resolution && (
-            <div className="rounded-md border border-[oklch(0.88_0.05_155)] bg-[oklch(0.945_0.034_155)] p-3">
-              <p className="micro-label mb-1 text-[oklch(0.40_0.09_155)]">Resolution</p>
+            <div className="rounded-md border border-success/40 bg-success-muted p-3">
+              <p className="micro-label mb-1 text-success-deep">Resolution</p>
               <p className="text-[13px] leading-relaxed">{ticket.resolution}</p>
             </div>
           )}

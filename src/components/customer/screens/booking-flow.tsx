@@ -158,6 +158,10 @@ export function BookingFlowScreen({ categoryIdParam }: { categoryIdParam?: strin
         ...FRESH_STATE,
         categoryId: init.prefill.categoryId ?? null,
         serviceId: init.prefill.serviceId ?? null,
+        /* "Book again" carries the original work description and notes. */
+        description: init.prefill.description ?? "",
+        notes: init.prefill.notes ?? "",
+        descriptionTouched: Boolean(init.prefill.description),
       };
     }
     if (init.restored && flowSnapshot) return flowSnapshot.state;
@@ -552,7 +556,7 @@ function ServiceStep({
               key={s.id}
               className={cn(
                 "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
-                active ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30 hover:bg-muted/40",
+                active ? "border-primary bg-primary-muted" : "hover:border-primary/30 hover:bg-muted/40",
               )}
             >
               <input
@@ -639,7 +643,7 @@ function RequirementsStep({
                   key={a.id}
                   className={cn(
                     "flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors",
-                    active ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30 hover:bg-muted/40",
+                    active ? "border-primary bg-primary-muted" : "hover:border-primary/30 hover:bg-muted/40",
                   )}
                 >
                   <input
@@ -803,7 +807,7 @@ function RecommendationCard({
     <label
       className={cn(
         "block cursor-pointer rounded-lg border bg-card p-5 transition-colors",
-        selected ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30",
+        selected ? "border-primary bg-primary-muted" : "hover:border-primary/30",
       )}
     >
       <div className="flex items-start gap-4">
@@ -818,7 +822,7 @@ function RecommendationCard({
             <MatchBadge score={rec.score} size="sm" className="sm:hidden" />
             <span className="text-[13px] text-muted-foreground">{rec.worker.tradeTitle}</span>
             {selected && (
-              <span className="ml-auto inline-flex items-center gap-1 rounded-sm border border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.40_0.09_155)]">
+              <span className="ml-auto inline-flex items-center gap-1 rounded-sm border border-primary/40 bg-success-muted px-1.5 py-0.5 text-[11px] font-medium text-success-deep">
                 <Check className="h-3 w-3" strokeWidth={2.4} /> Selected
               </span>
             )}
@@ -880,7 +884,7 @@ function DirectWorkerCard({
     <label
       className={cn(
         "block cursor-pointer rounded-lg border bg-card p-5 transition-colors",
-        selected ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30",
+        selected ? "border-primary bg-primary-muted" : "hover:border-primary/30",
       )}
     >
       <div className="flex items-start gap-4">
@@ -891,7 +895,7 @@ function DirectWorkerCard({
             <span className="text-[15px] font-semibold leading-tight">{worker.name}</span>
             <span className="rounded-sm border bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">Your selection</span>
             {selected && (
-              <span className="ml-auto inline-flex items-center gap-1 rounded-sm border border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)] px-1.5 py-0.5 text-[11px] font-medium text-[oklch(0.40_0.09_155)]">
+              <span className="ml-auto inline-flex items-center gap-1 rounded-sm border border-primary/40 bg-success-muted px-1.5 py-0.5 text-[11px] font-medium text-success-deep">
                 <Check className="h-3 w-3" strokeWidth={2.4} /> Selected
               </span>
             )}
@@ -991,7 +995,7 @@ function SlotStep({
                     {g.label} <span className="ml-1.5 font-normal text-muted-foreground">{g.hint}</span>
                   </p>
                   {state.slotDate && (
-                    <p className={cn("inline-flex items-center gap-1 text-xs", covered ? "text-[oklch(0.40_0.09_155)]" : "text-[oklch(0.55_0.12_65)]")}>
+                    <p className={cn("inline-flex items-center gap-1 text-xs", covered ? "text-success-deep" : "text-warning-deep")}>
                       {covered ? (
                         <>
                           <Check className="h-3.5 w-3.5" strokeWidth={2.2} /> In {worker?.name ?? "member"}'s usual hours
@@ -1034,7 +1038,7 @@ function SlotStep({
         </div>
 
         {selectedOutsideHours && worker && (
-          <p className="flex items-start gap-2 rounded-md border border-[oklch(0.90_0.06_80)] bg-[oklch(0.965_0.035_85)] px-3 py-2.5 text-xs leading-relaxed text-[oklch(0.45_0.10_65)]">
+          <p className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning-muted px-3 py-2.5 text-xs leading-relaxed text-warning-deep">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.9} />
             {worker.name} is not usually available in this window — they may propose a nearby slot after accepting, or you can pick another time.
           </p>
@@ -1052,7 +1056,7 @@ function SlotStep({
                     key={o.id}
                     className={cn(
                       "flex cursor-pointer items-start gap-2.5 rounded-lg border p-3.5 transition-colors",
-                      active ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30 hover:bg-muted/40",
+                      active ? "border-primary bg-primary-muted" : "hover:border-primary/30 hover:bg-muted/40",
                     )}
                   >
                     <input
@@ -1081,11 +1085,11 @@ function SlotStep({
             </div>
           </fieldset>
           <p className="mt-3 flex items-start gap-2 rounded-md border bg-muted/30 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
-            <Repeat className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+            <Repeat className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" strokeWidth={1.9} />
             Standing orders give our members stable, predictable income — the cooperative's core promise. Same member, same rate, priority scheduling.
           </p>
           {state.recurrence !== "one-time" && (
-            <p className="mt-2 flex items-start gap-1.5 pl-3 text-xs leading-relaxed text-[oklch(0.45_0.10_155)]">
+            <p className="mt-2 flex items-start gap-1.5 pl-3 text-xs leading-relaxed text-success-deep">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
               + next occurrence auto-scheduled after each completed visit — same time, same rate, cancel anytime.
             </p>
@@ -1166,7 +1170,7 @@ function ReviewStep({
             <dt className="w-28 shrink-0 text-[13px] text-muted-foreground">Frequency</dt>
             <dd className="min-w-0 flex-1">
               <span className="inline-flex items-center gap-1.5 font-medium">
-                {state.recurrence !== "one-time" && <Repeat className="h-3.5 w-3.5 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} aria-hidden />}
+                {state.recurrence !== "one-time" && <Repeat className="h-3.5 w-3.5 text-success" strokeWidth={1.9} aria-hidden />}
                 {state.recurrence === "one-time" ? "One-time visit" : `${recurrenceLabel(state.recurrence)} standing order`}
               </span>
               {state.recurrence !== "one-time" && (
@@ -1214,7 +1218,7 @@ function ReviewStep({
                 key={m.id}
                 className={cn(
                   "flex cursor-pointer items-center gap-3 rounded-lg border p-3.5 transition-colors",
-                  active ? "border-primary bg-[oklch(0.975_0.012_155)]" : "hover:border-primary/30 hover:bg-muted/40",
+                  active ? "border-primary bg-primary-muted" : "hover:border-primary/30 hover:bg-muted/40",
                 )}
               >
                 <input
@@ -1263,7 +1267,7 @@ function ReviewStep({
             )}
           </Button>
           <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
-            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" strokeWidth={1.9} />
             Payment is held securely and settled to your member only after you confirm completion. Simulated UPI — prototype only.
           </p>
         </div>
@@ -1288,8 +1292,8 @@ function ConfirmationStep({ booking, worker }: { booking: Booking; worker?: Work
   return (
     <section className="rounded-lg border bg-card p-6 sm:p-8">
       <div className="flex flex-col items-center text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-[oklch(0.88_0.03_155)] bg-[oklch(0.945_0.034_155)]">
-          <Check className="h-7 w-7 text-[oklch(0.45_0.10_155)]" strokeWidth={2} />
+        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/40 bg-success-muted">
+          <Check className="h-7 w-7 text-success-deep" strokeWidth={2} />
         </span>
         <h2 className="mt-4 text-xl font-semibold tracking-tight">Request sent to {worker?.name ?? "your member"}</h2>
         <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">

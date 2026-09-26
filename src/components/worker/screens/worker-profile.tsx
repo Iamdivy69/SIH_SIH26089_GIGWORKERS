@@ -224,7 +224,7 @@ export function WorkerProfile() {
                 <SectionCard title="Credentials">
                   <div className="space-y-3">
                     <p className="flex items-center gap-2 text-[13px]">
-                      <ShieldCheck className="h-4 w-4 text-[oklch(0.5_0.105_155)]" strokeWidth={1.9} />
+                      <ShieldCheck className="h-4 w-4 text-success" strokeWidth={1.9} />
                       All 4 verification checks complete
                     </p>
                     <p className="tnum text-[13px] text-muted-foreground">

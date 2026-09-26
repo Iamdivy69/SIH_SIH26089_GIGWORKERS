@@ -70,7 +70,7 @@ export function WorkerEarnings() {
       key: "welfare",
       header: "Welfare",
       align: "right",
-      cell: (t) => <span className="tnum text-[oklch(0.45_0.10_155)]">{money(t.welfareContribution)}</span>,
+      cell: (t) => <span className="tnum text-success-deep">{money(t.welfareContribution)}</span>,
     },
     { key: "tds", header: "TDS", align: "right", cell: (t) => <span className="tnum text-muted-foreground">− {money(t.tds)}</span> },
     { key: "net", header: "Net", align: "right", cell: (t) => <span className="tnum font-semibold">{money(t.net)}</span> },
@@ -115,8 +115,8 @@ export function WorkerEarnings() {
               {s.standingOrders > 0 ? (
                 <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-primary/25 bg-accent/40 px-4 py-3">
                   <p className="flex min-w-0 items-center gap-2.5 text-[13px]">
-                    <Repeat className="h-4 w-4 shrink-0 text-[oklch(0.45_0.10_155)]" strokeWidth={1.9} aria-hidden />
-                    <span className="tnum font-semibold text-[oklch(0.45_0.10_155)]">Recurring income: {money(s.recurringMonthly)}/mo</span>
+                    <Repeat className="h-4 w-4 shrink-0 text-success-deep" strokeWidth={1.9} aria-hidden />
+                    <span className="tnum font-semibold text-success-deep">Recurring income: {money(s.recurringMonthly)}/mo</span>
                     <span className="text-muted-foreground">
                       from {num(s.standingOrders)} standing order{s.standingOrders === 1 ? "" : "s"}
                     </span>
@@ -218,7 +218,7 @@ export function WorkerEarnings() {
                       </div>
                       <div className="flex items-baseline justify-between gap-3">
                         <dt className="text-muted-foreground">Credited to your welfare fund</dt>
-                        <dd className="tnum font-medium text-[oklch(0.45_0.10_155)]">{money(s.welfareMonth)}</dd>
+                        <dd className="tnum font-medium text-success-deep">{money(s.welfareMonth)}</dd>
                       </div>
                       <Separator />
                       <div className="flex items-baseline justify-between gap-3">

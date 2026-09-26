@@ -147,7 +147,7 @@ export function WorkerWelfare() {
       key: "amount",
       header: "Contribution",
       align: "right",
-      cell: (c) => <span className="tnum font-medium text-[oklch(0.45_0.10_155)]">+ {money(c.amount)}</span>,
+      cell: (c) => <span className="tnum font-medium text-success-deep">+ {money(c.amount)}</span>,
     },
     { key: "balance", header: "Balance after", align: "right", cell: (c) => <span className="tnum text-muted-foreground">{money(c.balanceAfter)}</span> },
   ];

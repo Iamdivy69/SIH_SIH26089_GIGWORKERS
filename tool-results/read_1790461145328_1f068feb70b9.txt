@@ -1,0 +1,182 @@
+   560→    totalBookings: 5,
+   561→    lifetimeValue: 6384,
+   562→    addresses: [
+   563→      { id: "addr-home", label: "Home", line: "Flat 402, Sunshree Residency, Paud Road", locality: "Kothrud", city: "Pune", pincode: "411038" },
+   564→      { id: "addr-parents", label: "Parents' home", line: "Row House 12, Sai Colony, Karve Nagar", locality: "Karve Nagar", city: "Pune", pincode: "411052" },
+   565→    ],
+   566→    preferredCategories: ["cleaning", "electrical", "gardening"],
+   567→  },
+   568→  { id: "c-rohan", name: "Rohan Mehta", locality: "Baner", city: "Pune", memberSince: iso(daysAgo(280)), totalBookings: 7, lifetimeValue: 9420, addresses: [{ id: "addr-rohan", label: "Home", line: "B-1104, Skyline Heights, Baner Road", locality: "Baner", city: "Pune", pincode: "411045" }], preferredCategories: ["electrical", "cleaning"] },
+   569→  { id: "c-sneha", name: "Sneha Kulkarni", locality: "Aundh", city: "Pune", memberSince: iso(daysAgo(210)), totalBookings: 4, lifetimeValue: 6992, addresses: [{ id: "addr-sneha", label: "Home", line: "Flat 7, Sterling Park, Aundh Gaon", locality: "Aundh", city: "Pune", pincode: "411007" }], preferredCategories: ["cleaning", "community-care"] },
+   570→  { id: "c-aditya", name: "Aditya Joshi", locality: "Viman Nagar", city: "Pune", memberSince: iso(daysAgo(360)), totalBookings: 6, lifetimeValue: 7750, addresses: [{ id: "addr-aditya", label: "Home", line: "C-302, Konark Greens, Viman Nagar", locality: "Viman Nagar", city: "Pune", pincode: "411014" }], preferredCategories: ["repairs", "electrical"] },
+   571→  { id: "c-farida", name: "Farida Sheikh", locality: "Kharadi", city: "Pune", memberSince: iso(daysAgo(150)), totalBookings: 3, lifetimeValue: 4386, addresses: [{ id: "addr-farida", label: "Home", line: "802, Riverdale Towers, Kharadi", locality: "Kharadi", city: "Pune", pincode: "411014" }], preferredCategories: ["community-care", "cleaning"] },
+   572→  { id: "c-manish", name: "Manish Agarwal", locality: "Wakad", city: "Pune", memberSince: iso(daysAgo(95)), totalBookings: 2, lifetimeValue: 2278, addresses: [{ id: "addr-manish", label: "Home", line: "Flat 1109, Sai Symphony, Wakad", locality: "Wakad", city: "Pune", pincode: "411057" }], preferredCategories: ["cleaning"] },
+   573→  { id: "c-divya", name: "Divya Nair", locality: "Kalyani Nagar", city: "Pune", memberSince: iso(daysAgo(330)), totalBookings: 5, lifetimeValue: 5167, addresses: [{ id: "addr-divya", label: "Home", line: "Villa 4, Nagar Road Residency, Kalyani Nagar", locality: "Kalyani Nagar", city: "Pune", pincode: "411006" }], preferredCategories: ["community-care", "gardening"] },
+   574→  { id: "c-sameer", name: "Sameer Rane", locality: "Hadapsar", city: "Pune", memberSince: iso(daysAgo(60)), totalBookings: 2, lifetimeValue: 1898, addresses: [{ id: "addr-sameer", label: "Home", line: "Plot 18, Gandhi Nagar, Hadapsar", locality: "Hadapsar", city: "Pune", pincode: "411028" }], preferredCategories: ["plumbing", "electrical"] },
+   575→];
+   576→
+   577→export const DEMO_USERS = {
+   578→  customer: "c-ananya",
+   579→  worker: "w-priya",
+   580→  admin: "u-admin",
+   581→};
+   582→
+   583→/* ------------------------------------------------------------------ */
+   584→/* Bookings                                                            */
+   585→/* ------------------------------------------------------------------ */
+   586→
+   587→interface BookingSeed {
+   588→  id: string;
+   589→  customerId: string;
+   590→  workerId: string;
+   591→  categoryId: Booking["categoryId"];
+   592→  serviceId: string;
+   593→  title: string;
+   594→  description: string;
+   595→  when: Date;
+   596→  status: Booking["status"];
+   597→  rating?: number;
+   598→  reviewComment?: string;
+   599→  reviewTags?: string[];
+   600→  matchScore?: number;
+   601→  customerNotes?: string;
+   602→  /** Standing-order fields — set on every occurrence of a series. */
+   603→  recurrence?: BookingRecurrence;
+   604→  seriesId?: string;
+   605→  occurrenceIndex?: number;
+   606→  /** Fixed charge override — standing orders keep the same rate across occurrences. */
+   607→  charge?: number;
+   608→  /** Hours before the slot this request was created (auto-scheduled occurrences are created at the previous visit's confirmation). */
+   609→  createdHoursBefore?: number;
+   610→  /** Seeded booking-scoped chat — hours offset relative to the scheduled slot (negative = before the visit). */
+   611→  messages?: { role: "customer" | "worker"; text: string; hoursOffset: number }[];
+   612→}
+   613→
+   614→const seeds: BookingSeed[] = [
+   615→  /* --- Ananya (demo customer) history --- */
+   616→  { id: "bk-101", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Post-Diwali deep clean, include balconies and windows.", when: daysAgo(28, 10, 0), status: "completed", rating: 5, reviewComment: "Meena's team was thorough — the kitchen looks brand new. They even did the balcony grills without being asked.", reviewTags: ["Thorough", "Punctual", "Tidy"], matchScore: 96 },
+   617→  { id: "bk-102", customerId: "c-ananya", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p1", title: "Tap, leak & pipe repair", description: "Kitchen sink tap dripping continuously; bathroom health faucet loose.", when: daysAgo(21, 16, 30), status: "completed", rating: 5, reviewComment: "Diagnosed both issues quickly, replaced the washer and cartridge. No mess left behind.", reviewTags: ["Skilled", "Tidy"], matchScore: 93 },
+   618→  { id: "bk-103", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c3", title: "Kitchen deep clean", description: "Degreasing after heavy festive cooking.", when: daysAgo(12, 11, 0), status: "completed", rating: 5, reviewComment: "Second time booking Meena. Consistent quality and very professional about moving things back.", reviewTags: ["Repeat visit", "Professional"], matchScore: 97 },
+   619→  { id: "bk-104", customerId: "c-ananya", workerId: "w-vikas", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "Study room fan making grinding noise.", when: daysAgo(8, 18, 0), status: "completed", rating: 4, reviewComment: "Fixed the bearing issue. Took a little longer than expected but explained the problem clearly.", reviewTags: ["Clear explanation"], matchScore: 88 },
+   620→  /* --- Ananya upcoming --- */
+   621→  { id: "bk-105", customerId: "c-ananya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Terrace garden upkeep — pruning, watering, check the soil in planters.", when: daysAhead(1, 10, 0), status: "confirmed", matchScore: 92, customerNotes: "Please ring the doorbell twice; the intercom is being repaired.", messages: [
+   622→    { role: "customer", text: "Hi Arjun — the terrace tap drips a little; could you check the planter drainage while you're here?", hoursOffset: -16 },
+   623→    { role: "worker", text: "Yes, I'll bring a spare washer and check the drainage slope. I'll also trim the ficus hedge as part of the visit.", hoursOffset: -13 },
+   624→  ] },
+   625→  /* --- Other customers: completed history (past 35 days) --- */
+   626→  { id: "bk-201", customerId: "c-rohan", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e3", title: "Light fixture & wiring repair", description: "Bedroom lights flickering; two holders need replacement.", when: daysAgo(31, 17, 30), status: "completed", rating: 5, reviewComment: "Priya arrived with all parts, finished in an hour and gave a written safety summary. Rare professionalism.", reviewTags: ["Professional", "Punctual", "Skilled"], matchScore: 95 },
+   627→  { id: "bk-202", customerId: "c-sneha", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c4", title: "Bathroom deep clean (2 baths)", description: "Both bathrooms need descaling before guests arrive.", when: daysAgo(30, 9, 30), status: "completed", rating: 4, reviewComment: "Good work. The second bathroom could have been detailed a bit more, but overall satisfied.", reviewTags: ["Tidy"], matchScore: 91 },
+   628→  { id: "bk-203", customerId: "c-divya", workerId: "w-sunita", categoryId: "community-care", serviceId: "svc-cc1", title: "Elder care companion visit (2 hrs)", description: "Companion visit for my father — walk in the park, chess, medication reminder.", when: daysAgo(29, 16, 0), status: "completed", rating: 5, reviewComment: "Sunita aunty is wonderful with my father. The visit notes she writes are so reassuring for us.", reviewTags: ["Caring", "Reliable"], matchScore: 94 },
+   629→  { id: "bk-204", customerId: "c-aditya", workerId: "w-deepak", categoryId: "repairs", serviceId: "svc-r2", title: "Appliance repair", description: "Washing machine not spinning; makes clicking sound.", when: daysAgo(27, 12, 0), status: "completed", rating: 5, reviewComment: "Deepak found the lid switch fault in ten minutes. Fair quote, quick fix.", reviewTags: ["Skilled", "Fair pricing"], matchScore: 90 },
+   630→  { id: "bk-205", customerId: "c-farida", workerId: "w-kavita", categoryId: "cleaning", serviceId: "svc-c1", title: "Full home deep clean (1 BHK)", description: "Move-in clean before occupancy.", when: daysAgo(26, 8, 30), status: "completed", rating: 5, reviewComment: "Spotless move-in clean. Kavita brought her own supplies and was very systematic.", reviewTags: ["Thorough", "Tidy"], matchScore: 89 },
+   631→  { id: "bk-206", customerId: "c-manish", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e2", title: "Switchboard & socket repair", description: "Sparking observed in one socket; old switchboard needs replacement.", when: daysAgo(24, 10, 30), status: "completed", rating: 5, reviewComment: "Replaced the board neatly, labelled every switch. She insisted on testing each point before leaving.", reviewTags: ["Skilled", "Professional"], matchScore: 96 },
+   632→  { id: "bk-207", customerId: "c-sameer", workerId: "w-sandeep", categoryId: "plumbing", serviceId: "svc-p2", title: "Drain & blockage clearing", description: "Bathroom floor trap blocked, water pooling.", when: daysAgo(22, 9, 0), status: "completed", rating: 4, reviewComment: "Cleared the blockage. Slight delay in arrival but informed in advance.", reviewTags: ["Communicative"], matchScore: 84 },
+   633→  { id: "bk-208", customerId: "c-divya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g2", title: "Lawn mowing & edging", description: "Front lawn overgrown after the rains.", when: daysAgo(20, 8, 0), status: "completed", rating: 4, reviewComment: "Lawn looks much better now. Took one star off because some edging was uneven near the gate.", reviewTags: ["Tidy"], matchScore: 87 },
+   634→  { id: "bk-209", customerId: "c-rohan", workerId: "w-farhan", categoryId: "electrical", serviceId: "svc-e5", title: "Inverter & backup setup", description: "Install new inverter for 3 fans + 4 lights backup.", when: daysAgo(19, 17, 0), status: "completed", rating: 4, reviewComment: "Clean installation and explained load calculations before finalising. Good experience.", reviewTags: ["Clear explanation", "Skilled"], matchScore: 86 },
+   635→  { id: "bk-210", customerId: "c-sneha", workerId: "w-anita", categoryId: "community-care", serviceId: "svc-cc4", title: "Weekly wellbeing check-in", description: "Weekly check for my mother — BP log, medication reminders.", when: daysAgo(18, 11, 0), status: "completed", rating: 5, reviewComment: "Anita is punctual and warm. The weekly notes template she shares is excellent.", reviewTags: ["Caring", "Punctual"], matchScore: 93 },
+   636→  { id: "bk-211", customerId: "c-aditya", workerId: "w-mangesh", categoryId: "repairs", serviceId: "svc-r2", title: "Appliance repair", description: "Microwave tray not rotating; heating uneven.", when: daysAgo(17, 19, 0), status: "completed", rating: 4, reviewComment: "Fixed the motor and roller. Carried spare parts, which saved a second visit.", reviewTags: ["Skilled"], matchScore: 88 },
+   637→  { id: "bk-212", customerId: "c-farida", workerId: "w-sunita", categoryId: "community-care", serviceId: "svc-cc2", title: "Grocery & errand assistance", description: "Monthly grocery pickup + pharmacy for mother-in-law.", when: daysAgo(15, 10, 0), status: "completed", rating: 5, reviewComment: "So helpful — receipts for everything, and she waited at the pharmacy counter patiently.", reviewTags: ["Reliable", "Caring"], matchScore: 92 },
+   638→  { id: "bk-213", customerId: "c-rohan", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c3", title: "Kitchen deep clean", description: "Chimney and hob degreasing.", when: daysAgo(14, 14, 0), status: "completed", rating: 5, reviewComment: "Chimney looks like new. Very systematic work.", reviewTags: ["Thorough"], matchScore: 90 },
+   639→  { id: "bk-214", customerId: "c-sameer", workerId: "w-vikas", categoryId: "electrical", serviceId: "svc-e6", title: "General electrical repair", description: "Two fans and a tube light not working after voltage fluctuation.", when: daysAgo(13, 18, 30), status: "completed", rating: 4, reviewComment: "Fixed all three. Honest about what could be repaired vs replaced.", reviewTags: ["Honest", "Fair pricing"], matchScore: 85 },
+   640→  { id: "bk-215", customerId: "c-manish", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p3", title: "Fixture installation", description: "New shower set + health faucet installation.", when: daysAgo(11, 11, 30), status: "completed", rating: 5, reviewComment: "Perfect installation, and he took the old fittings away for proper disposal.", reviewTags: ["Skilled", "Tidy"], matchScore: 91 },
+   641→  { id: "bk-216", customerId: "c-divya", workerId: "w-sunita", categoryId: "community-care", serviceId: "svc-cc1", title: "Elder care companion visit (2 hrs)", description: "Father's afternoon walk and company.", when: daysAgo(9, 16, 0), status: "completed", rating: 5, reviewComment: "Father specifically asks for Sunita now. That says everything.", reviewTags: ["Caring", "Repeat visit"], matchScore: 95 },
+   642→  { id: "bk-217", customerId: "c-aditya", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e4", title: "Full wiring safety inspection", description: "35-year-old society flat — full load and earthing check before renovation.", when: daysAgo(7, 9, 30), status: "completed", rating: 5, reviewComment: "Extremely detailed inspection with a written report. She flagged two earthing issues the society electrician missed.", reviewTags: ["Professional", "Detailed report", "Skilled"], matchScore: 97 },
+   643→  { id: "bk-218", customerId: "c-sneha", workerId: "w-kavita", categoryId: "cleaning", serviceId: "svc-c5", title: "Sofa & carpet shampoo", description: "3-seater fabric sofa + one rug.", when: daysAgo(6, 15, 0), status: "completed", rating: 4, reviewComment: "Stains mostly gone, sofa dried by evening. Slight damp smell for a day.", reviewTags: ["Tidy"], matchScore: 88 },
+   644→  { id: "bk-219", customerId: "c-farida", workerId: "w-farhan", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "New fan installation in kids' room.", when: daysAgo(5, 19, 0), status: "completed", rating: 5, reviewComment: "Quick, neat and cleaned up after. Booked him again for next month.", reviewTags: ["Punctual", "Tidy", "Repeat visit"], matchScore: 90 },
+   645→  /* --- Priya's completed jobs this week (worker earnings context) --- */
+   646→  { id: "bk-301", customerId: "c-manish", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e6", title: "General electrical repair", description: "Socket sparking in kitchen; MCB tripping.", when: daysAgo(3, 10, 30), status: "completed", rating: 5, reviewComment: "Found a loose neutral wire behind the socket. Very careful work.", reviewTags: ["Skilled", "Professional"], matchScore: 94 },
+   647→  { id: "bk-302", customerId: "c-divya", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "Two fans serviced, one regulator replaced.", when: daysAgo(2, 17, 30), status: "completed", rating: 5, reviewComment: "Fast and friendly. Explained the regulator fault simply.", reviewTags: ["Punctual", "Skilled"], matchScore: 93 },
+   648→  { id: "bk-303", customerId: "c-sameer", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e3", title: "Light fixture & wiring repair", description: "Three holders + a flickering tube light.", when: daysAgo(1, 18, 0), status: "completed", rating: 5, reviewComment: "Punctual, neat, and priced as quoted.", reviewTags: ["Punctual", "Fair pricing"], matchScore: 95 },
+   649→  { id: "bk-304", customerId: "c-rohan", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e2", title: "Switchboard & socket repair", description: "Replace old switchboard in living room.", when: daysAgo(0, 10, 30), status: "completed", rating: 5, reviewComment: "Labelled every point and tested each one. Excellent as always.", reviewTags: ["Professional", "Tidy"], matchScore: 96 },
+   650→  /* --- Priya: awaiting customer confirmation (pending settlement) --- */
+   651→  { id: "bk-305", customerId: "c-aditya", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e6", title: "General electrical repair", description: "Corridor lights not turning on; suspected wiring fault.", when: daysAgo(1, 8, 0), status: "awaiting_confirmation", matchScore: 91, messages: [
+   652→    { role: "customer", text: "Corridor lights are working now — thank you for clearing up the wiring so neatly.", hoursOffset: 3 },
+   653→    { role: "worker", text: "Glad it's sorted! If the flicker returns within 30 days, message here and I'll visit free of charge under the service warranty.", hoursOffset: 5 },
+   654→  ] },
+   655→  /* --- Priya upcoming --- */
+   656→  { id: "bk-306", customerId: "c-sneha", workerId: "w-priya", categoryId: "electrical", serviceId: "svc-e4", title: "Full wiring safety inspection", description: "Pre-monsoon inspection for 2 BHK.", when: daysAhead(1, 11, 0), status: "confirmed", matchScore: 96, messages: [
+   657→    { role: "customer", text: "Hi Priya — the inspection is for a 2 BHK, 12-year-old building. Will you need the mains power off for long?", hoursOffset: -15 },
+   658→    { role: "worker", text: "Only about 30–40 minutes per circuit, and one room at a time so your fridge stays on. I'll bring the earth-resistance tester.", hoursOffset: -13 },
+   659→    { role: "customer", text: "Perfect. The society gate code is 1947# — please call if it doesn't work.", hoursOffset: -2 },
+   660→  ] },
+   661→  /* --- Other workers today (admin ops numbers) --- */
+   662→  { id: "bk-401", customerId: "c-sneha", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c3", title: "Kitchen deep clean", description: "Festive season kitchen refresh.", when: daysAgo(0, new Date().getHours() >= 12 ? new Date().getHours() - 2 : 11, 0), status: "in_progress", matchScore: 92 },
+   663→  { id: "bk-402", customerId: "c-rohan", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p1", title: "Tap, leak & pipe repair", description: "Terrace tap leaking.", when: daysAgo(0, 8, 30), status: "completed", rating: 5, reviewComment: "Quick fix before office hours. Appreciated.", reviewTags: ["Punctual"], matchScore: 93 },
+   664→  { id: "bk-403", customerId: "c-sameer", workerId: "w-sandeep", categoryId: "plumbing", serviceId: "svc-p5", title: "Bathroom plumbing inspection", description: "Low pressure in shower since a week.", when: daysAgo(0, 12, 30), status: "completed", rating: 4, reviewComment: "Cleaned the aerator and fixed a kinked hose. Honest about not needing parts.", reviewTags: ["Honest"], matchScore: 82 },
+   665→  { id: "bk-404", customerId: "c-farida", workerId: "w-anita", categoryId: "community-care", serviceId: "svc-cc4", title: "Weekly wellbeing check-in", description: "Mother-in-law BP + medication check.", when: daysAgo(0, 9, 0), status: "completed", rating: 5, reviewComment: "Weekly notes on time again.", reviewTags: ["Reliable"], matchScore: 94 },
+   666→  { id: "bk-405", customerId: "c-manish", workerId: "w-kavita", categoryId: "cleaning", serviceId: "svc-c4", title: "Bathroom deep clean (2 baths)", description: "Regular monthly bathroom care.", when: daysAgo(0, 17, 0), status: "confirmed", matchScore: 87 },
+   667→  { id: "bk-406", customerId: "c-divya", workerId: "w-arjun", categoryId: "gardening", serviceId: "svc-g1", title: "Garden maintenance visit", description: "Fortnightly maintenance.", when: daysAgo(0, 15, 30), status: "confirmed", matchScore: 89 },
+   668→  /* --- Offers pending acceptance (worker workflow) --- */
+   669→  { id: "bk-501", customerId: "c-rohan", workerId: "w-rakesh", categoryId: "plumbing", serviceId: "svc-p2", title: "Drain & blockage clearing", description: "Kitchen sink draining very slowly; water pools.", when: daysAhead(1, 10, 0), status: "pending_acceptance", matchScore: 92 },
+   670→  { id: "bk-502", customerId: "c-aditya", workerId: "w-deepak", categoryId: "repairs", serviceId: "svc-r1", title: "Furniture repair & assembly", description: "Wardrobe hinge broken; study chair wobbly.", when: daysAhead(2, 18, 30), status: "pending_acceptance", matchScore: 90 },
+   671→  /* --- Upcoming confirmed --- */
+   672→  { id: "bk-503", customerId: "c-sneha", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Pre-wedding function clean at parents' place.", when: daysAhead(3, 9, 0), status: "confirmed", matchScore: 95 },
+   673→  { id: "bk-504", customerId: "c-farida", workerId: "w-sunita", categoryId: "community-care", serviceId: "svc-cc3", title: "Post-hospitalisation support visit", description: "Mother-in-law discharged Friday; need assistance through the weekend.", when: daysAhead(4, 10, 0), status: "confirmed", matchScore: 97, customerNotes: "Please call on arrival — the building gate code will be shared." },
+   674→  { id: "bk-505", customerId: "c-sameer", workerId: "w-mangesh", categoryId: "repairs", serviceId: "svc-r2", title: "Appliance repair", description: "Mixer jar coupling replacement.", when: daysAhead(5, 18, 0), status: "confirmed", matchScore: 86 },
+   675→  { id: "bk-506", customerId: "c-divya", workerId: "w-vikas", categoryId: "electrical", serviceId: "svc-e1", title: "Fan installation or repair", description: "Install two new fans before summer.", when: daysAhead(6, 9, 30), status: "confirmed", matchScore: 85 },
+   676→  /* --- Cancelled --- */
+   677→  { id: "bk-601", customerId: "c-manish", workerId: "w-kavita", categoryId: "cleaning", serviceId: "svc-c1", title: "Full home deep clean (1 BHK)", description: "Scheduled clean; customer travelling.", when: daysAgo(4, 9, 0), status: "cancelled", matchScore: 88 },
+   678→];
+   679→
+   680→/* ------------------------------------------------------------------ */
+   681→/* Priya's 8-week work history (generated for organic-looking          */
+   682→/* earnings charts, transaction tables and welfare statements)         */
+   683→/* ------------------------------------------------------------------ */
+   684→const PRIYA_HISTORY_CUSTOMERS = ["c-rohan", "c-sneha", "c-aditya", "c-farida", "c-manish", "c-divya", "c-sameer"];
+   685→const PRIYA_HISTORY_JOBS: { svc: string; note: string; daysBack: number; hour: number; rating?: number; comment?: string; tags?: string[] }[] = [
+   686→  { svc: "svc-e1", note: "Three fans serviced before summer.", daysBack: 52, hour: 10, rating: 5, comment: "Quick service, all three fans silent now.", tags: ["Punctual", "Skilled"] },
+   687→  { svc: "svc-e6", note: "Kitchen MCB tripping repeatedly.", daysBack: 50, hour: 17, rating: 5 },
+   688→  { svc: "svc-e3", note: "Two tube lights and a holder replaced.", daysBack: 47, hour: 11 },
+   689→  { svc: "svc-e2", note: "Modular switchboard for study.", daysBack: 44, hour: 18, rating: 5, comment: "Neat wiring, labelled everything. Highly recommended.", tags: ["Professional", "Tidy"] },
+   690→  { svc: "svc-e5", note: "Inverter battery check and reconnection.", daysBack: 42, hour: 9, rating: 4, comment: "Thorough job, took a little longer than the estimate.", tags: ["Skilled"] },
+   691→  { svc: "svc-e1", note: "New fan installation, kids' room.", daysBack: 39, hour: 16 },
+   692→  { svc: "svc-e6", note: "Loose socket in living room.", daysBack: 36, hour: 10, rating: 5 },
+   693→  { svc: "svc-e4", note: "Wiring inspection for a resale flat.", daysBack: 33, hour: 11, rating: 5, comment: "Detailed written report — the buyer's electrician confirmed her findings.", tags: ["Detailed report", "Professional"] },
+   694→  { svc: "svc-e3", note: "Flickering corridor light fixed.", daysBack: 31, hour: 18 },
+   695→  { svc: "svc-e2", note: "Two sparking sockets replaced.", daysBack: 28, hour: 17, rating: 4, comment: "Good work, had to visit the shop for a part.", tags: ["Skilled"] },
+   696→  { svc: "svc-e1", note: "Fan wobble repair, master bedroom.", daysBack: 25, hour: 10 },
+   697→  { svc: "svc-e6", note: "Geyser connection check.", daysBack: 22, hour: 9, rating: 5, comment: "Honest assessment — advised a replacement only where needed.", tags: ["Honest", "Fair pricing"] },
+   698→  { svc: "svc-e5", note: "Inverter load rewiring after purchase.", daysBack: 19, hour: 16 },
+   699→  { svc: "svc-e3", note: "Bedroom light fixtures replaced.", daysBack: 16, hour: 11, rating: 5 },
+   700→  { svc: "svc-e2", note: "Old switchboard replacement, kitchen.", daysBack: 13, hour: 17, rating: 5, comment: "Clean work and cleared the old board herself.", tags: ["Tidy", "Professional"] },
+   701→  { svc: "svc-e1", note: "Two fans serviced, balcony.", daysBack: 10, hour: 10 },
+   702→  { svc: "svc-e6", note: "Doorbell and extension board fault.", daysBack: 8, hour: 18, rating: 4, comment: "Fixed both issues in one visit.", tags: ["Skilled"] },
+   703→  { svc: "svc-e4", note: "Pre-monsoon earthing check.", daysBack: 6, hour: 9, rating: 5 },
+   704→];
+   705→
+   706→PRIYA_HISTORY_JOBS.forEach((job, idx) => {
+   707→  const service = serviceById("electrical", job.svc)!;
+   708→  seeds.push({
+   709→    id: `bk-7${String(idx + 1).padStart(2, "0")}`,
+   710→    customerId: PRIYA_HISTORY_CUSTOMERS[idx % PRIYA_HISTORY_CUSTOMERS.length],
+   711→    workerId: "w-priya",
+   712→    categoryId: "electrical",
+   713→    serviceId: job.svc,
+   714→    title: service.name,
+   715→    description: job.note,
+   716→    when: daysAgo(job.daysBack, job.hour, [0, 30][idx % 2]),
+   717→    status: "completed",
+   718→    rating: job.rating,
+   719→    reviewComment: job.comment,
+   720→    reviewTags: job.tags,
+   721→    matchScore: 88 + (idx % 9),
+   722→  });
+   723→});
+   724→
+   725→/* ------------------------------------------------------------------ */
+   726→/* Standing orders (recurring bookings) — the cooperative's core        */
+   727→/* promise of stable, predictable member income. Three series:         */
+   728→/* weekly deep cleaning (Meena), monthly plumbing maintenance          */
+   729→/* (Rakesh), monthly garden upkeep (Arjun). All charges pinned to the   */
+   730→/* catalogue base price — same member, same rate.                      */
+   731→/* ------------------------------------------------------------------ */
+   732→seeds.push(
+   733→  /* so-001 — Ananya ↔ Meena, weekly full-home deep clean (₹1,999) */
+   734→  { id: "bk-801", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(37, 10, 0), status: "completed", rating: 5, reviewComment: "First visit of our weekly plan — spotless as always. Meena's team knows the house now.", reviewTags: ["Thorough", "Repeat visit"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 1, charge: 1999 },
+   735→  { id: "bk-802", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(30, 10, 0), status: "completed", rating: 5, reviewComment: "Second weekly clean — same quality, same rate. Exactly why we set up the standing order.", reviewTags: ["Reliable"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 2, charge: 1999 },
+   736→  { id: "bk-803", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(23, 10, 0), status: "completed", rating: 5, reviewComment: "Weekly clean done while I was at work. They lock up carefully and leave a note.", reviewTags: ["Reliable", "Tidy"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 3, charge: 1999 },
+   737→  { id: "bk-804", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(16, 10, 0), status: "completed", rating: 4, reviewComment: "Good clean. A couple of high shelves were missed this week — mentioned to Meena and they were covered next visit.", reviewTags: ["Tidy"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 4, charge: 1999 },
+   738→  { id: "bk-805", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAgo(9, 10, 0), status: "completed", rating: 5, reviewComment: "Fifth weekly clean and the flat has never stayed this good. Standing orders are a lifesaver.", reviewTags: ["Repeat visit", "Thorough"], matchScore: 96, recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 5, charge: 1999 },
+   739→  { id: "bk-806", customerId: "c-ananya", workerId: "w-meena", categoryId: "cleaning", serviceId: "svc-c2", title: "Full home deep clean (2 BHK)", description: "Standing order — weekly deep clean of our 2 BHK: every room, kitchen, bathrooms and balconies.", when: daysAhead(2, 10, 0), status: "confirmed", matchScore: 96, customerNotes: "Spare key with the society office if nobody is home — they know Meena's team.", recurrence: "weekly", seriesId: "so-001", occurrenceIndex: 6, charge: 1999, createdHoursBefore: 11 * 24 },
+
+[showing lines 560-739 of 1157; use offset=740 with limit to continue reading]
