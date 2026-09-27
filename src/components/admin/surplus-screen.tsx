@@ -474,6 +474,17 @@ export function AdminSurplusScreen() {
           </FineNote>
         </SectionCard>
 
+        {/* ---------------- the historical per-member ledger ---------------- */}
+        {d.pastDistributions.length > 0 && (
+          <PastDistributionLedger
+            records={d.pastDistributions}
+            totalMembers={ld.members}
+            fy={ld.fiscalYear}
+            proposalCode={d.pastDistributions[0]?.proposalCode ?? ""}
+            distributedAt={ld.distributedAt}
+          />
+        )}
+
         {/* ---------------- cooperative framing ---------------- */}
         <div className="flex items-start gap-2.5 rounded-lg border bg-muted/30 p-4">
           <Coins className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.9} />
@@ -640,3 +651,87 @@ const ledgerColumns: Column<DividendDistribution & { name: string; trade: string
     ),
   },
 ];
+
+/* ------------------------------------------------------------------ */
+/* Past distribution ledger — the certified record from a prior FY     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The immutable per-member record of a COMPLETED prior-year distribution —
+ * the same shape as the executed-ledger table above, so the historical
+ * state is demoable without running the live vote→close→distribute loop.
+ */
+function PastDistributionLedger({
+  records,
+  totalMembers,
+  fy,
+  proposalCode,
+  distributedAt,
+}: {
+  records: (DividendDistribution & { name: string; trade: string })[];
+  totalMembers: number;
+  fy: string;
+  proposalCode: string;
+  distributedAt: string;
+}) {
+  const paid = records.reduce((acc, r) => acc + r.amount, 0);
+  const avg = records.length > 0 ? Math.round(paid / records.length) : 0;
+
+  return (
+    <SectionCard
+      title={`Past distribution ledger — FY ${fy}`}
+      description={`The certified per-member record of the ${dateFull(distributedAt)} distribution — every entry immutable and mirrored in each member's own dividend history.`}
+      forTable
+    >
+      <div className="grid grid-cols-3 gap-4 px-5 pt-1">
+        <div>
+          <p className="micro-label">Paid to these members</p>
+          <p className="tnum mt-1 text-lg font-semibold tracking-tight text-success-deep">{moneyCompact(paid)}</p>
+          <p className="tnum mt-0.5 text-xs text-muted-foreground">{money(paid)}</p>
+        </div>
+        <div>
+          <p className="micro-label">Avg per member</p>
+          <p className="tnum mt-1 text-lg font-semibold tracking-tight">{moneyCompact(avg)}</p>
+          <p className="tnum mt-0.5 text-xs text-muted-foreground">{money(avg)}</p>
+        </div>
+        <div>
+          <p className="micro-label">Approved by</p>
+          <p className="tnum mt-1 text-lg font-semibold tracking-tight">{proposalCode}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">member vote · certified</p>
+        </div>
+      </div>
+      <div className="mt-4">
+        <DataTable
+          columns={ledgerColumns}
+          rows={records}
+          getRowKey={(r) => r.id}
+          emptyTitle="No past distributions"
+          emptyDescription="Completed prior-year distributions appear here as an immutable record."
+          mobileCard={(r) => (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2.5">
+                <PersonAvatar name={r.name} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium">{r.name}</p>
+                  <p className="tnum truncate font-mono text-[11px] text-muted-foreground">{r.reference}</p>
+                </div>
+                <p className="tnum shrink-0 text-sm font-semibold text-success-deep">{money(r.amount)}</p>
+              </div>
+              <p className="tnum flex items-center justify-between pl-10 text-xs text-muted-foreground">
+                <span>Patronage {money(r.patronage)}</span>
+                <span>Share {r.sharePct.toFixed(1)}%</span>
+              </p>
+            </div>
+          )}
+        />
+      </div>
+      <div className="border-t px-5 py-3">
+        <FineNote>
+          {num(records.length)} of {num(totalMembers)} members shown — this prototype seeds the demo members of the FY {fy}{" "}
+          distribution; the full 216-member ledger lives in the cooperative&apos;s books. Dividends were paid in proportion to
+          each member&apos;s patronage that year, after {proposalCode} passed the member vote.
+        </FineNote>
+      </div>
+    </SectionCard>
+  );
+}

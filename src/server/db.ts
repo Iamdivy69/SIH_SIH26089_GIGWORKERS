@@ -34,7 +34,7 @@ import type {
 } from "@/lib/types";
 import { amountInWords } from "@/lib/format";
 import { computePrice } from "@/lib/rates";
-import { publishNotification } from "./push";
+import { publishChatMessage, publishNotification } from "./push";
 import { CATEGORIES, CHECKLISTS, serviceById } from "./catalog";
 import {
   CUSTOMERS,
@@ -330,6 +330,15 @@ export function surplusView(): AdminSurplusView {
     memberPreview,
     distributionLedger: getStore()
       .dividendHistory.filter((r) => r.fiscalYear === surplus.fiscalYear)
+      .sort((a, b) => b.amount - a.amount)
+      .map((r) => {
+        const worker = getStore().workers.find((w) => w.id === r.workerId);
+        return { ...r, name: worker?.name ?? r.workerId, trade: worker?.tradeTitle ?? "—" };
+      }),
+    /* completed distributions from PRIOR fiscal years — the immutable
+       historical ledger, demoable without running the live vote loop */
+    pastDistributions: getStore()
+      .dividendHistory.filter((r) => r.fiscalYear !== surplus.fiscalYear)
       .sort((a, b) => b.amount - a.amount)
       .map((r) => {
         const worker = getStore().workers.find((w) => w.id === r.workerId);
@@ -668,6 +677,7 @@ export function notify(userId: string, n: Omit<AppNotification, "id" | "userId" 
     title: record.title,
     body: record.body,
     createdAt: record.createdAt,
+    route: record.route,
   });
 }
 
@@ -721,6 +731,10 @@ export function addBookingMessage(
     body: `${booking.title} — “${text.trim().slice(0, 70)}${text.trim().length > 70 ? "…" : ""}”`,
     route: { name: routeName, params: { bookingId: booking.id } },
   });
+  /* Live chat fan-out: every tab with this booking's chat open receives the
+     message instantly (the notification above still deep-links tabs that
+     don't have the thread open; tabs that do suppress the toast). */
+  publishChatMessage(booking.id, message);
   return message;
 }
 

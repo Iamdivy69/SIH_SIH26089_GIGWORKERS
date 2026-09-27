@@ -368,7 +368,9 @@ function LiveStatusLine({ className }: { className?: string }) {
     <span className={cn("flex items-center gap-1.5", className)} aria-label={`Real-time connection ${connected ? "active" : "unavailable"}`}>
       <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-success" : "bg-warning")} aria-hidden />
       <span className={connected ? "text-[11px] font-medium text-success" : "text-[11px] font-medium text-warning-deep"}>
-        {connected ? "Live connection — new notifications arrive instantly" : "Real-time unavailable — refreshing every 20 seconds"}
+        {connected
+          ? "Live connection — notifications and chat messages arrive instantly"
+          : "Real-time unavailable — refreshing every 20 seconds"}
       </span>
     </span>
   );

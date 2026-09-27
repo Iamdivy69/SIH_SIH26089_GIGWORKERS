@@ -1,31 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { io, type Socket } from "socket.io-client";
+import { useEffect, useSyncExternalStore, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bell, CalendarCheck, CircleDollarSign, LifeBuoy, MessageSquareWarning, Settings, ShieldAlert, Vote } from "lucide-react";
+import { Bell, CalendarCheck, CircleDollarSign, LifeBuoy, Settings, ShieldAlert, Vote } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DEMO_USER_ID, useRole } from "@/store/app-store";
 import { useLiveStore } from "@/store/live-store";
+import { getLiveSocket } from "@/lib/live-socket";
 import type { AppNotification } from "@/lib/types";
 
 /**
  * Real-time notification layer (socket.io → mini-services/notify, port 3030
- * through the Caddy gateway as io("/?XTransformPort=3030")).
+ * through the Caddy gateway — shared singleton from lib/live-socket.ts).
  *
  * Design:
- *   - exactly one socket per browser tab, created once on mount and torn
- *     down on unmount — it outlives role switches (rooms re-subscribed);
+ *   - the tab's one shared socket (also used by the live booking chat);
+ *     this component only manages the USER ROOM subscription and the
+ *     push-reaction behaviour;
  *   - the current demo role's user id decides which room the tab listens to;
  *     switching roles re-subscribes and re-registers the push handler so a
  *     notification is only toasted/invalidated for the role it belongs to;
- *   - pushes trigger a TanStack invalidation of ["notifications"] so the
- *     bell badge, sheet and screens refresh instantly; the 20s polling
- *     remains as a silent fallback for when the service is unreachable;
+ *   - pushes trigger a TanStack invalidation of ["notifications"] (badge,
+ *     sheet, screens) plus the data surfaces the notification is about —
+ *     when the pushed notification carries a deep link to a booking, that
+ *     booking's detail query is invalidated too, so an open detail screen
+ *     refreshes itself;
  *   - toasts are only shown for notifications not already present in the
- *     cache (a fresh publish can race a same-screen optimistic refetch —
- *     don't double-toast what the user just did themselves);
+ *     cache, and are suppressed for chat messages that just arrived in a
+ *     thread this tab has open (the bubble appearing IS the feedback —
+ *     no toast on top);
  *   - every socket failure path is silent by design (demo resilience):
  *     reconnection keeps retrying forever, the header indicator is the
  *     only visible signal of connection state.
@@ -38,6 +42,7 @@ interface PushedNotification {
   title: string;
   body: string;
   createdAt: string;
+  route?: { name: string; params?: Record<string, string> };
 }
 
 /**
@@ -68,40 +73,21 @@ const KIND_TOAST_META: Record<string, { icon: LucideIcon; className: string }> =
 export function LiveNotifications() {
   const role = useRole();
   const qc = useQueryClient();
-  const socketRef = useRef<Socket | null>(null);
-
-  /* --- one socket per tab, reconnection forever --- */
-  useEffect(() => {
-    const socket = io("/?XTransformPort=3030", {
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionDelay: 2_000,
-      reconnectionDelayMax: 8_000,
-      timeout: 10_000,
-    });
-    socketRef.current = socket;
-
-    const setConnected = useLiveStore.getState().setConnected;
-    socket.on("connect", () => setConnected(true));
-    socket.on("disconnect", () => setConnected(false));
-    socket.on("connect_error", () => setConnected(false));
-
-    return () => {
-      setConnected(false);
-      socket.disconnect();
-      socketRef.current = null;
-    };
-  }, []);
 
   /* --- room subscription + push reaction, re-registered per role --- */
   useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
+    const socket = getLiveSocket();
     const userId = DEMO_USER_ID[role];
 
     const onConnect = () => socket.emit("subscribe", { userId });
     if (socket.connected) onConnect();
     socket.on("connect", onConnect);
+
+    /* the service replies with the current online set — seed the map */
+    const onSubscribed = (p: { online?: string[] }) => {
+      if (Array.isArray(p?.online)) useLiveStore.getState().applyPresenceSnapshot(p.online);
+    };
+    socket.on("subscribed", onSubscribed);
 
     const onNotification = (n: PushedNotification) => {
       const setLastEventAt = useLiveStore.getState().setLastEventAt;
@@ -113,11 +99,21 @@ export function LiveNotifications() {
       for (const key of KIND_INVALIDATIONS[n.kind] ?? []) {
         void qc.invalidateQueries({ queryKey: key });
       }
+      /* …and when it deep-links to a specific booking, that booking's
+         detail query (an open detail screen refreshes itself live) */
+      const linkedBooking = n.route?.params?.bookingId;
+      if (linkedBooking) {
+        void qc.invalidateQueries({ queryKey: ["booking", linkedBooking] });
+      }
 
-      /* toast only genuinely-new items for the role currently on screen */
+      /* toast only genuinely-new items for the role currently on screen —
+         and never for chat messages that just landed in an open thread */
+      const openChat = useLiveStore.getState().openChatBookingId;
+      const isChatMessage = typeof n.title === "string" && n.title.startsWith("New message from");
+      const arrivedInOpenChat = isChatMessage && openChat !== null && linkedBooking === openChat;
       const cached = qc.getQueryData<{ items: AppNotification[]; unread: number }>(["notifications", role]);
       const known = cached?.items.some((x) => x.id === n.id) ?? false;
-      if (!known) {
+      if (!known && !arrivedInOpenChat) {
         const meta = KIND_TOAST_META[n.kind] ?? { icon: Bell, className: "text-muted-foreground" };
         toast(n.title, {
           description: n.body,
@@ -129,6 +125,7 @@ export function LiveNotifications() {
 
     return () => {
       socket.off("connect", onConnect);
+      socket.off("subscribed", onSubscribed);
       socket.off("notification", onNotification);
     };
   }, [role, qc]);
@@ -161,7 +158,7 @@ export function LiveIndicator({ className }: { className?: string }) {
 
   const label = connected ? "Live" : "Delayed";
   const title = connected
-    ? "Real-time connection active — notifications arrive instantly."
+    ? "Real-time connection active — notifications and chat arrive instantly."
     : "Real-time channel unavailable — notifications refresh every ~20 seconds.";
 
   return (

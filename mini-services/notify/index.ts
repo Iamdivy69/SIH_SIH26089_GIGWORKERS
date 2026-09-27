@@ -1,27 +1,36 @@
 /**
- * Sahyog — real-time notification push service (mini-service).
+ * Sahyog — real-time push service (mini-service).
  *
  * Purpose: pushes newly-created notifications to connected browser tabs the
  * instant the mock API records them, instead of waiting for the frontend's
- * 20s polling fallback. The Next.js mock API (src/server/db.ts `notify()`)
- * POSTs every new notification to the CONTROL port (127.0.0.1:3031); the
- * service emits it to the room named after the target user id.
+ * 20s polling fallback — and carries the live booking chat (instant message
+ * delivery, typing indicator, online presence) between customer and worker
+ * tabs.
+ *
+ * The Next.js mock API (src/server/db.ts `notify()` / `addBookingMessage()`)
+ * POSTs every event to the CONTROL port (127.0.0.1:3031); the service fans
+ * it out to the right room:
+ *
+ *   user room `c-ananya`            → notifications (one room per demo user)
+ *   chat room `chat:bk-103`         → live chat messages for that booking
+ *   broadcast `presence`            → who is online right now
  *
  * Ports (this service owns two):
  *   3030 — browser-facing websocket (socket.io, engine.io path MUST stay "/"
  *          because browsers connect through the Caddy gateway as
  *          io("/?XTransformPort=3030") — engine.io then owns every request
  *          on that port, so nothing else can be served there).
- *   3031 — internal loopback-only control HTTP (POST /publish, GET /health),
- *          used exclusively server-to-server by the Next.js mock API.
+ *   3031 — internal loopback-only control HTTP (POST /publish, POST /chat,
+ *          GET /health), used exclusively server-to-server by the Next.js
+ *          mock API.
  *
- * Failure semantics: this service is best-effort. If it is down, the POST
- * /publish calls fail silently server-side and the app keeps working on
- * polling alone — nothing else depends on it.
+ * Failure semantics: this service is best-effort. If it is down, the POSTs
+ * fail silently server-side and the app keeps working on polling alone —
+ * nothing else depends on it.
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
-import { Server } from "socket.io";
+import { Server, type Socket } from "socket.io";
 
 const SOCKET_PORT = 3030;
 const CONTROL_PORT = 3031;
@@ -35,11 +44,28 @@ interface PushPayload {
     title: string;
     body: string;
     createdAt: string;
+    route?: { name: string; params?: Record<string, string> };
   };
 }
 
+/** Live chat payload published by the mock API after a message is stored. */
+interface ChatPayload {
+  bookingId: string;
+  message: {
+    id: string;
+    authorRole: string;
+    authorName: string;
+    text: string;
+    at: string;
+  };
+}
+
+/** Room ids are `chat:<bookingId>`; booking ids look like `bk-103`. */
+const BOOKING_ID_RE = /^bk-[a-z0-9-]{1,24}$/i;
+const chatRoom = (bookingId: string) => `chat:${bookingId}`;
+
 /* ------------------------------------------------------------------ */
-/* Socket layer — one room per user id                                 */
+/* Socket layer — user rooms + chat rooms + presence                   */
 /* ------------------------------------------------------------------ */
 
 const io = new Server({
@@ -51,6 +77,19 @@ const io = new Server({
   pingTimeout: 60_000,
 });
 
+/**
+ * Presence: userId → sockets currently subscribed as that user. A user is
+ * "online" while the set is non-empty (multiple tabs = multiple sockets).
+ * Demo-scoped: presence is broadcast to every connected socket because the
+ * prototype has exactly three trusted demo users; a production deployment
+ * would scope it to users who share an active booking.
+ */
+const onlineUsers = new Map<string, Set<string>>();
+
+function broadcastPresence(userId: string, online: boolean) {
+  io.emit("presence", { userId, online });
+}
+
 function roomSummary(): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [room, sockets] of io.sockets.adapter.rooms) {
@@ -61,7 +100,7 @@ function roomSummary(): Record<string, number> {
   return out;
 }
 
-io.on("connection", (socket) => {
+io.on("connection", (socket: Socket) => {
   /* demo-scoped: each tab subscribes to exactly one demo user id and may
      switch rooms when the demo role changes */
   socket.data.userId = null as string | null;
@@ -71,16 +110,80 @@ io.on("connection", (socket) => {
       typeof (payload as { userId?: unknown })?.userId === "string"
         ? (payload as { userId: string }).userId.trim()
         : "";
-    if (!userId) return;
+    if (!userId || userId.length > 40) return;
     const previous = socket.data.userId as string | null;
-    if (previous && previous !== userId) socket.leave(previous);
+    if (previous && previous !== userId) {
+      socket.leave(previous);
+      /* drop this socket from the PREVIOUS user's online set — otherwise a
+         role switch leaves a phantom "online" entry that never clears */
+      const prevSet = onlineUsers.get(previous);
+      if (prevSet) {
+        prevSet.delete(socket.id);
+        if (prevSet.size === 0) {
+          onlineUsers.delete(previous);
+          broadcastPresence(previous, false);
+        }
+      }
+    }
     socket.data.userId = userId;
     socket.join(userId);
-    socket.emit("subscribed", { userId });
+
+    /* presence bookkeeping — count sockets per user, announce changes once */
+    const wasOnline = onlineUsers.has(userId);
+    const set = onlineUsers.get(userId) ?? new Set<string>();
+    set.add(socket.id);
+    onlineUsers.set(userId, set);
+    if (!wasOnline) broadcastPresence(userId, true);
+
+    /* the newly-subscribed tab gets the current online set (minus itself —
+       it knows it is online; the map includes it for consistency anyway) */
+    socket.emit("subscribed", { userId, online: [...onlineUsers.keys()] });
+  });
+
+  /* --- live chat rooms --- */
+
+  socket.on("join-chat", (payload: unknown) => {
+    const bookingId =
+      typeof (payload as { bookingId?: unknown })?.bookingId === "string"
+        ? (payload as { bookingId: string }).bookingId.trim()
+        : "";
+    if (!BOOKING_ID_RE.test(bookingId)) return;
+    socket.join(chatRoom(bookingId));
+  });
+
+  socket.on("leave-chat", (payload: unknown) => {
+    const bookingId =
+      typeof (payload as { bookingId?: unknown })?.bookingId === "string"
+        ? (payload as { bookingId: string }).bookingId.trim()
+        : "";
+    if (!BOOKING_ID_RE.test(bookingId)) return;
+    socket.leave(chatRoom(bookingId));
+  });
+
+  /** Typing indicator: relayed to the other tab(s) in the same chat room. */
+  socket.on("chat:typing", (payload: unknown) => {
+    const bookingId =
+      typeof (payload as { bookingId?: unknown })?.bookingId === "string"
+        ? (payload as { bookingId: string }).bookingId.trim()
+        : "";
+    if (!BOOKING_ID_RE.test(bookingId)) return;
+    socket.to(chatRoom(bookingId)).emit("chat:typing", {
+      bookingId,
+      from: socket.data.userId,
+    });
   });
 
   socket.on("disconnect", () => {
+    const userId = socket.data.userId as string | null;
     socket.data.userId = null;
+    if (!userId) return;
+    const set = onlineUsers.get(userId);
+    if (!set) return;
+    set.delete(socket.id);
+    if (set.size === 0) {
+      onlineUsers.delete(userId);
+      broadcastPresence(userId, false);
+    }
   });
 });
 
@@ -125,6 +228,7 @@ async function handleControl(req: IncomingMessage, res: ServerResponse) {
       service: "sahyog-notify",
       clients: io.engine.clientsCount,
       rooms: roomSummary(),
+      online: [...onlineUsers.keys()],
       uptimeSec: Math.round(process.uptime()),
     });
     return;
@@ -145,6 +249,35 @@ async function handleControl(req: IncomingMessage, res: ServerResponse) {
       }
       const delivered = io.sockets.adapter.rooms.get(parsed.userId)?.size ?? 0;
       io.to(parsed.userId).emit("notification", parsed.notification);
+      json(res, 200, { ok: true, delivered });
+    } catch (err) {
+      json(res, 400, { ok: false, error: err instanceof Error ? err.message : "bad request" });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/chat") {
+    try {
+      const parsed = JSON.parse(await readBody(req)) as ChatPayload;
+      if (
+        !parsed ||
+        typeof parsed.bookingId !== "string" ||
+        !BOOKING_ID_RE.test(parsed.bookingId) ||
+        !parsed.message ||
+        typeof parsed.message.id !== "string" ||
+        typeof parsed.message.text !== "string"
+      ) {
+        json(res, 400, { ok: false, error: "invalid payload" });
+        return;
+      }
+      /* fan out to every tab that currently has this booking's chat open —
+         the sender's own tab appends optimistically on its POST response,
+         and dedupes by message id if it also receives this event */
+      const delivered = io.sockets.adapter.rooms.get(chatRoom(parsed.bookingId))?.size ?? 0;
+      io.to(chatRoom(parsed.bookingId)).emit("chat:message", {
+        bookingId: parsed.bookingId,
+        message: parsed.message,
+      });
       json(res, 200, { ok: true, delivered });
     } catch (err) {
       json(res, 400, { ok: false, error: err instanceof Error ? err.message : "bad request" });

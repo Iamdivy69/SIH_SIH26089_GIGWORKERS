@@ -654,6 +654,9 @@ export interface AdminSurplusView extends SurplusData {
   /** Actual distribution records for this FY (empty until a vote passes and executes),
    *  enriched with the member's display name and trade for the ledger table. */
   distributionLedger: (DividendDistribution & { name: string; trade: string })[];
+  /** Completed distributions from PRIOR fiscal years — the immutable historical
+   *  ledger (same enrichment), demoable without running the live vote loop. */
+  pastDistributions: (DividendDistribution & { name: string; trade: string })[];
 }
 
 /** Member-facing view of the live surplus plan — "your patronage dividend".
