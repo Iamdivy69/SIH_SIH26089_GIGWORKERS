@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, ErrorState, PageHeader } from "@/components/shared";
 import { useMarkNotificationsRead, useNotifications } from "@/hooks/use-api";
 import { roleOfRoute, useAppStore, type Role } from "@/store/app-store";
+import { useLiveStore } from "@/store/live-store";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { AppNotification, NotificationKind } from "@/lib/types";
@@ -225,6 +226,7 @@ export function NotificationCenterScreen({ role }: { role: Role }) {
                 <span className="tnum font-semibold text-foreground">{items.length}</span> total
                 <span aria-hidden className="mx-2">·</span>
                 <span className="tnum font-semibold text-foreground">{last24}</span> in the past 24 hours
+                <LiveStatusLine className="mt-1.5" />
               </p>
             </div>
           )}
@@ -348,5 +350,26 @@ function NotificationsSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Live connection status line (shared with the header pill state)     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Small status line for the notifications screen — surfaces the real-time
+ * push connection (or its polling fallback) exactly where it matters:
+ * above the list the connection keeps fresh.
+ */
+function LiveStatusLine({ className }: { className?: string }) {
+  const connected = useLiveStore((s) => s.connected);
+  return (
+    <span className={cn("flex items-center gap-1.5", className)} aria-label={`Real-time connection ${connected ? "active" : "unavailable"}`}>
+      <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-success" : "bg-warning")} aria-hidden />
+      <span className={connected ? "text-[11px] font-medium text-success" : "text-[11px] font-medium text-warning-deep"}>
+        {connected ? "Live connection — new notifications arrive instantly" : "Real-time unavailable — refreshing every 20 seconds"}
+      </span>
+    </span>
   );
 }

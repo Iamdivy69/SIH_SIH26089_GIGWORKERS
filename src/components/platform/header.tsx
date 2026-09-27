@@ -18,6 +18,7 @@ import { useMarkNotificationsRead, useNotifications, useSession } from "@/hooks/
 import { pageMeta, MOBILE_NAV } from "./nav";
 import { PersonAvatar } from "@/components/shared";
 import { CommandPalette } from "./command-palette";
+import { LiveIndicator, useLivePulse } from "./live-notifications";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "./sidebar";
@@ -80,6 +81,7 @@ export function Header({ badges }: { badges: Record<string, number> }) {
   const { data: session } = useSession();
   const { data: notifications } = useNotifications();
   const markRead = useMarkNotificationsRead();
+  const livePulse = useLivePulse();
   const meta = pageMeta(route.name);
   const user = session?.users[role];
 
@@ -105,6 +107,9 @@ export function Header({ badges }: { badges: Record<string, number> }) {
 
       {/* Global command palette (Ctrl/Cmd+K) */}
       <CommandPalette />
+
+      {/* Real-time push status (socket.io mini-service; polling fallback) */}
+      <LiveIndicator className="hidden items-center gap-1.5 rounded-sm border px-2 py-1 sm:inline-flex" />
 
       {/* Prototype indicator */}
       <span className="hidden items-center gap-1.5 rounded-sm border border-dashed px-2 py-1 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground lg:inline-flex">
@@ -134,7 +139,7 @@ export function Header({ badges }: { badges: Record<string, number> }) {
       <Sheet open={useAppStore((s) => s.notificationsOpen)} onOpenChange={(open) => useAppStore.getState().setNotificationsOpen(open)}>
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="relative h-9 w-9" aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}>
-            <Bell className="h-[18px] w-[18px]" />
+            <Bell className={cn("h-[18px] w-[18px]", livePulse && "motion-safe:animate-pulse text-primary")} />
             {unread > 0 && (
               <span className="tnum absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-0.5 text-[9.5px] font-bold text-primary-foreground">
                 {unread > 9 ? "9+" : unread}
@@ -263,6 +268,7 @@ export function MobileNav({ badges }: { badges: Record<string, number> }) {
   const route = useAppStore((s) => s.route);
   const navigate = useAppStore((s) => s.navigate);
   const { data: notifications } = useNotifications();
+  const livePulse = useLivePulse();
   const tabs = MOBILE_NAV[role];
   const unread = notifications?.unread ?? 0;
 
@@ -289,7 +295,14 @@ export function MobileNav({ badges }: { badges: Record<string, number> }) {
             >
               <t.icon className="h-5 w-5" strokeWidth={1.9} />
               {t.label}
-              {badge > 0 && <span className="absolute right-[22%] top-1.5 h-2 w-2 rounded-full bg-primary" />}
+              {badge > 0 && (
+                <span className="absolute right-[22%] top-1.5 h-2 w-2" aria-hidden>
+                  {livePulse && t.route.endsWith("-notifications") && (
+                    <span className="absolute inline-flex h-3.5 w-3.5 -translate-x-[3px] -translate-y-[3px] rounded-full bg-primary/50 motion-safe:animate-ping" />
+                  )}
+                  <span className="h-2 w-2 rounded-full bg-primary" />
+                </span>
+              )}
             </button>
           );
         })}

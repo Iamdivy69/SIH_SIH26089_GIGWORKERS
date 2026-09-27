@@ -441,6 +441,50 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
               </p>
             </SectionCard>
 
+            {/* The other side of the same bill — the cooperative's dual
+                transparency: only meaningful once payment has settled. */}
+            {booking.paymentStatus === "settled" && (
+              <SectionCard
+                title={`What ${worker.name} earned`}
+                description="The member's settlement for this job — the other side of the same bill."
+              >
+                <div className="flex items-baseline justify-between gap-4 rounded-md border border-success/40 bg-success-muted/60 px-4 py-3">
+                  <div>
+                    <p className="text-[13px] font-semibold text-success-deep">Net cash in hand</p>
+                    <p className="mt-0.5 text-xs text-success-deep/80">after TDS · settled with this payment</p>
+                  </div>
+                  <p className="tnum text-xl font-semibold text-success-deep">{money(booking.price.workerNetPayout)}</p>
+                </div>
+                <dl className="mt-4 divide-y divide-border/70 text-[13px]">
+                  <Row label="Service charge">
+                    <span className="tnum font-medium">{money(booking.price.serviceCharge)}</span>
+                    <span className="block text-xs text-muted-foreground">kept whole — no commission cut</span>
+                  </Row>
+                  <Row label="Welfare fund credit">
+                    <span className="tnum font-medium text-success-deep">+{money(booking.price.workerWelfareCredit)}</span>
+                    <span className="block text-xs text-muted-foreground">added on top, grows her co-op balance</span>
+                  </Row>
+                  <Row label="TDS">
+                    <span className="tnum font-medium">−{money(booking.price.workerTds)}</span>
+                    <span className="block text-xs text-muted-foreground">statutory, deducted at source (simulated)</span>
+                  </Row>
+                </dl>
+                <p className="mt-4 border-t pt-3 text-xs leading-relaxed text-muted-foreground">
+                  The cooperative's flat 6% processing fee ({money(booking.price.platformFee)}) was paid by you on top of the
+                  service charge — it never comes out of what your member earns.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 h-8 px-2 text-[13px] text-primary"
+                  onClick={() => navigate("customer-payments")}
+                >
+                  <Receipt className="h-3.5 w-3.5" strokeWidth={1.9} />
+                  Your total contribution to members
+                </Button>
+              </SectionCard>
+            )}
+
             <SectionCard title="Service details">
               <dl className="divide-y divide-border/70 text-[13px]">
                 <Row label="Reference">

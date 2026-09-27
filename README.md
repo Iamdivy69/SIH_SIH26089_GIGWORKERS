@@ -11,12 +11,17 @@ An interactive, production-quality frontend prototype demonstrating a services p
 
 ```bash
 bun run dev        # starts on http://localhost:3000 (dev server)
+
+cd mini-services/notify && bun run dev   # OPTIONAL: real-time notification push
+                                          # (socket.io, port 3030 + loopback 3031)
 bun run lint       # ESLint
 ```
 
 Open `http://localhost:3000/`. The first screen is a **demo console** — pick one of the three roles. You can switch roles anytime from the header ("Viewing as ▾").
 
 > Everything runs locally. There is **no real backend**: all data is served by an in-memory mock API inside this project. No real payments, verifications, insurance or identities are involved — the header carries a "Demo · simulated data" badge throughout.
+>
+> The notify mini-service is **optional**: with it running, the header shows a **LIVE** pill and every notification (job offers, settlements, vote calls, dividends) is **pushed to open tabs in real time** — try booking as the customer in one tab while watching the worker tab. Without it (or if it stops), the app silently falls back to 20-second polling and the pill shows **Delayed**.
 
 ## The demo scenario (SIH presentation flow)
 
@@ -32,6 +37,7 @@ The whole journey works end-to-end **in one browser session**, because all three
 8. Payment settles → back as **Worker**: the earnings transaction (₹800 gross → ₹792 net + ₹24 welfare credit) appears in *Earnings*, the contribution in *Welfare & benefits*
 9. Switch to **Admin** (Kiran Rao): operations overview, bookings monitor and finance all reflect the completed service; the demand forecast, verification queue, dispute desk and governance pages are fully populated
 10. Also try: **Ctrl+K** anywhere (command palette), the customer booking's **View invoice** (printable GST invoice), and the full surplus loop: Admin → *Cooperative → Surplus & dividends* → adjust the allocation → **Send to member vote** → switch to Worker → *Earnings* shows the **live patronage-dividend projection** moving with your edits → *Governance* → vote → back as Admin → *Governance* → **Close vote & record outcome** → the proposal passes, **the dividend executes instantly** — Worker → *Earnings* now shows **₹ credited + a dividends-received history**, and Admin → *Surplus & dividends* shows the executed **distribution ledger** (per-member, patronage-proportional, audit-certified)
+11. **Real-time moment (with the notify service running)**: open the app in **two browser tabs** — one as the customer, one as the worker (both show the LIVE pill). Book any service as the customer: the worker tab's bell badge, toast and job-offer list update **the instant the booking lands** — no refresh, no polling wait. Reply from the worker tab and watch the customer's tab react the same way. Also settle any completed booking as the customer and open its detail — the **"What [member] earned"** card shows the other side of the same bill: net cash in hand, welfare-fund credit and TDS
 
 ## What's inside
 
@@ -43,6 +49,8 @@ The whole journey works end-to-end **in one browser session**, because all three
 
 **Dark mode**: the whole platform (all three roles + welcome console) supports a full dark theme via the header toggle — semantic tokens throughout, charts included.
 
+**Real-time notifications**: every notification created by the mock API is **pushed to connected browser tabs over socket.io** (a tiny dedicated mini-service) — bell badge, toasts and screens update instantly; a **LIVE / Delayed indicator** in the header states the connection, and 20-second polling remains as a silent fallback. Each tab subscribes to its current demo role's room, so role switching re-subscribes automatically and notifications never leak across roles.
+
 **Command palette**: press **Ctrl/Cmd + K** (or click Search in the header) from any screen to jump anywhere — every screen of the active role, plus entity search: members by name/trade/locality, services, booking references (SG-…) and training courses. Fully keyboard-driven (↑↓ navigate · ↵ open · esc close).
 
 ### Cooperative model, visible in the product
@@ -52,6 +60,7 @@ The whole journey works end-to-end **in one browser session**, because all three
 - **Member dividend visibility** — every member sees their **own live projection** of the patronage dividend (Earnings card, Welfare strip, Dashboard row): patronage to date, share of the co-op's patronage base, the board's current draft split, and — once published — the proposal code, closing date and a direct vote CTA. The projection is honest: it moves live with the board's draft, and nothing pays out before the member vote
 - **Close-the-vote & distribution** — the admin closes votes with the tally and quorum certified in the audit log; when the surplus proposal passes, the distribution **executes on the spot**: an immutable per-member ledger (patronage-proportional, DIV- references), member notifications ("₹ credited"), and the workers' **dividends-received history** (FY 2025-26 seeded + this FY as executed). A failed or quorum-lapsed surplus vote reopens the board draft
 - **Customer impact** — the customer's home shows **where their own money went** (computed from their completed bookings): how much reached service members and their welfare funds vs. cooperative operations vs. GST — the co-op's answer to "where does my payment go", per customer; the payments screen carries the same numbers as a compact strip above the invoices
+- **Dual transparency per booking** — every settled booking detail shows **"What [member] earned"**: net cash in hand, the welfare-fund credit added on top and TDS — with the explicit note that the cooperative's 6% processing fee is paid by the customer on top and never cut from the service charge
 - **Explainable allocation** — no black-box "AI recommended": scores, weights and reasons are shown to both customers and workers
 - **Standing orders** — repeat bookings (weekly/monthly) give members stable, predictable income: every completed visit auto-schedules the next with the same member and rate, workers see a quantified recurring-income stat and priority offers, and the admin sees active-series counts
 - **Training & upskilling** — the cooperative funds member training (7 programmes across trades + professional skills); members earn auditable certificates (SCT-2025-###) that surface as trust signals on their customer-facing profiles, and admins track coverage
@@ -93,7 +102,7 @@ src/
 
 ## Tech stack
 
-Next.js 16 (App Router) · TypeScript 5 · Tailwind CSS 4 · shadcn/ui · TanStack Query · Zustand · Recharts · date-fns · Lucide · Sonner
+Next.js 16 (App Router) · TypeScript 5 · Tailwind CSS 4 · shadcn/ui · TanStack Query · Zustand · Recharts · date-fns · Lucide · Sonner · Socket.IO (real-time push mini-service)
 
 ## Notes for evaluators
 

@@ -34,6 +34,7 @@ import type {
 } from "@/lib/types";
 import { amountInWords } from "@/lib/format";
 import { computePrice } from "@/lib/rates";
+import { publishNotification } from "./push";
 import { CATEGORIES, CHECKLISTS, serviceById } from "./catalog";
 import {
   CUSTOMERS,
@@ -650,12 +651,23 @@ export function invoiceFor(bookingId: string): InvoiceData {
 
 export function notify(userId: string, n: Omit<AppNotification, "id" | "userId" | "createdAt" | "read">) {
   const store = getStore();
-  store.notifications.unshift({
+  const record: AppNotification = {
     ...n,
     id: `nt-live-${store.counters.notification++}`,
     userId,
     createdAt: new Date().toISOString(),
     read: false,
+  };
+  store.notifications.unshift(record);
+  /* Real-time fan-out to connected tabs (best-effort — see src/server/push.ts).
+     Seeded notifications bypass this function entirely, so only genuine
+     runtime activity triggers pushes. */
+  publishNotification(userId, {
+    id: record.id,
+    kind: record.kind,
+    title: record.title,
+    body: record.body,
+    createdAt: record.createdAt,
   });
 }
 

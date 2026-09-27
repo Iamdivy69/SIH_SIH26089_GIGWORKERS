@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { parseHash, useAppStore } from "@/store/app-store";
 import { pageMeta } from "./nav";
+import { LiveNotifications } from "./live-notifications";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -51,6 +52,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
       <QueryClientProvider client={client}>
         <TooltipProvider delayDuration={200}>
+          {/* real-time notification push (socket.io) — one connection per tab,
+              silent when the notify mini-service is unreachable */}
+          <LiveNotifications />
           {children}
           <Toaster position="bottom-right" closeButton />
         </TooltipProvider>
