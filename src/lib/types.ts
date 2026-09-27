@@ -620,7 +620,7 @@ export interface SurplusData {
   /** Members with patronage > 0 (dividend-sharing members). */
   sharingMembers: number;
   allocations: SurplusAllocationLine[];
-  status: "draft" | "in_vote";
+  status: "draft" | "in_vote" | "distributed";
   proposal?: { id: string; code: string; closesAt: string };
   lastDistributed: {
     fiscalYear: string;
@@ -631,12 +631,29 @@ export interface SurplusData {
   };
 }
 
+/** A completed dividend payment to one member — immutable once written. */
+export interface DividendDistribution {
+  id: string;
+  workerId: string;
+  fiscalYear: string;
+  /** Patronage basis for this distribution (completed service value that FY). */
+  patronage: number;
+  sharePct: number;
+  amount: number;
+  reference: string;
+  proposalCode: string;
+  distributedAt: string;
+}
+
 export interface AdminSurplusView extends SurplusData {
   /** Dividend pool at the current allocation, for headline display. */
   dividendPool: number;
   avgDividend: number;
   /** Top members by patronage — the dividend preview table. */
   memberPreview: SurplusMemberPreview[];
+  /** Actual distribution records for this FY (empty until a vote passes and executes),
+   *  enriched with the member's display name and trade for the ledger table. */
+  distributionLedger: (DividendDistribution & { name: string; trade: string })[];
 }
 
 /** Member-facing view of the live surplus plan — "your patronage dividend".
@@ -644,9 +661,11 @@ export interface AdminSurplusView extends SurplusData {
  *  every member's projection updates with it. */
 export interface MemberDividendView {
   fiscalYear: string;
-  status: "draft" | "in_vote";
+  status: "draft" | "in_vote" | "distributed";
   /** Present when the allocation is with the members for voting. */
   proposal?: { id: string; code: string; closesAt: string };
+  /** Present when this FY's dividend has been executed — the member's actual record. */
+  received?: DividendDistribution;
   /** This member's completed service value this FY — the patronage basis. */
   myPatronage: number;
   /** All members' patronage combined (the sharing base). */
@@ -666,6 +685,8 @@ export interface MemberDividendView {
   dividendRatePct: number;
   /** The board's current draft split — drives the mini allocation bar. */
   allocations: SurplusAllocationLine[];
+  /** Dividends this member has actually received, newest first. */
+  history: DividendDistribution[];
   /** Last completed distribution, for honest scale context. */
   lastDistributed: {
     fiscalYear: string;

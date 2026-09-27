@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FileText, Receipt } from "lucide-react";
+import { Download, FileText, HandCoins, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -128,6 +128,26 @@ export function PaymentsScreen() {
         <StatTile label="Completed services" value={num(overview?.completedCount ?? 0)} sub="lifetime" />
         <StatTile label="Average booking" value={money(avgBooking)} sub="completed services" />
       </div>
+
+      {/* Cooperative impact — the same bill-line mapping, from the customer's own completed bookings */}
+      {overview?.impact && overview.impact.totalPaid > 0 && (
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-lg border border-success/25 bg-success-muted/50 px-4 py-3">
+          <p className="flex min-w-0 items-center gap-2.5 text-[13px]">
+            <HandCoins className="h-4 w-4 shrink-0 text-success-deep" strokeWidth={1.9} aria-hidden />
+            <span className="tnum font-semibold text-success-deep">
+              {money(overview.impact.toMembers)} of {money(overview.impact.totalPaid)} you've paid went to service members
+            </span>
+            <span className="text-muted-foreground">
+              including {money(overview.impact.welfareFunded)} into their welfare funds · {Math.round(
+                (overview.impact.toMembers / overview.impact.totalPaid) * 100,
+              )}%
+            </span>
+          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Traceable on every invoice below — the cooperative model, in your own numbers.
+          </p>
+        </div>
+      )}
 
       <SectionCard title="Invoices" description="Click a row for the full invoice with allocation breakdown." forTable>
         {isError ? (

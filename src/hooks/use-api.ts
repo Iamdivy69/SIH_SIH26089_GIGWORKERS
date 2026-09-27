@@ -607,6 +607,36 @@ export function useCreateProposal() {
   });
 }
 
+/** Close an active proposal's vote: tally + quorum + outcome — and, when the
+ *  surplus proposal passes, the dividend distribution executes immediately. */
+export function useCloseProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (proposalId: string) =>
+      apiClient.post<{
+        proposal: GovernanceProposal;
+        distribution?: { pool: number; members: number };
+      }>(`admin/governance/proposals/${proposalId}/close`, {}),
+    onSuccess: ({ proposal, distribution }) => {
+      qc.invalidateQueries({ queryKey: ["admin-governance"] });
+      qc.invalidateQueries({ queryKey: ["governance"] });
+      qc.invalidateQueries({ queryKey: ["admin-surplus"] });
+      qc.invalidateQueries({ queryKey: ["worker-dividend"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      if (distribution) {
+        toast.success(`${proposal.code} passed — dividend distributed`, {
+          description: `₹${distribution.pool.toLocaleString("en-IN")} patronage dividend across ${distribution.members} members, credited just now.`,
+        });
+      } else {
+        toast.success(`Vote closed — ${proposal.code} ${proposal.status === "closed" ? "lapsed (quorum not met)" : proposal.status}`, {
+          description: proposal.outcomeNote,
+        });
+      }
+    },
+    onError: (err: Error) => toast.error("Cannot close this vote", { description: err.message }),
+  });
+}
+
 export function useAdminCategories() {
   return useQuery({
     queryKey: ["admin-categories"],

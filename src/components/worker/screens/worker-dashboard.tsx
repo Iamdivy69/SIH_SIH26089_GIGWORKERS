@@ -227,13 +227,17 @@ export function WorkerDashboard() {
                       <div className="min-w-0">
                         <p className="micro-label">Patronage dividend · FY {dividend.data.fiscalYear}</p>
                         <p className="tnum mt-0.5 text-lg font-semibold tracking-tight text-success-deep">
-                          {money(dividend.data.myProjectedDividend)}
-                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">projected</span>
+                          {money(dividend.data.received?.amount ?? dividend.data.myProjectedDividend)}
+                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                            {dividend.data.status === "distributed" ? "credited" : "projected"}
+                          </span>
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {dividend.data.status === "in_vote"
-                            ? `In vote now${dividend.data.proposal ? ` — ${dividend.data.proposal.code}` : ""}`
-                            : "Board draft — moves live, paid only after the member vote"}
+                          {dividend.data.status === "distributed"
+                            ? `FY ${dividend.data.fiscalYear} dividend received${dividend.data.received ? ` — ${dateShort(dividend.data.received.distributedAt)}` : ""}`
+                            : dividend.data.status === "in_vote"
+                              ? `In vote now${dividend.data.proposal ? ` — ${dividend.data.proposal.code}` : ""}`
+                              : "Board draft — moves live, paid only after the member vote"}
                         </p>
                       </div>
                       <Button variant="ghost" size="sm" className="h-7 shrink-0 text-xs" onClick={() => navigate("worker-earnings")}>

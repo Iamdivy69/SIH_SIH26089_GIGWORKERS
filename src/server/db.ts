@@ -7,6 +7,7 @@ import type {
   BookingMessage,
   BookingRecurrence,
   Customer,
+  DividendDistribution,
   GovernanceData,
   GovernanceProposal,
   InvoiceData,
@@ -75,6 +76,8 @@ interface Store {
   policy: PlatformPolicy;
   governance: GovernanceData;
   surplus: SurplusData;
+  /** Completed dividend payments per member (newest first; FY 2025-26 seeded). */
+  dividendHistory: DividendDistribution[];
   forecast: ReturnType<typeof generateForecast>;
   savedWorkers: string[]; // customer's shortlist
   openRequests: OpenJobRequest[];
@@ -84,8 +87,8 @@ interface Store {
 const globalRef = globalThis as unknown as { __sahyogStore?: Store; __sahyogSeedVersion?: number };
 
 /** Bump whenever seed data changes — a stale store from a previous HMR cycle reseeds automatically.
- *  13 = training-hub seed + reseeds away task 6-b's live E2E test enrolments. */
-const SEED_VERSION = 15;
+ *  16 = dividendHistory seed (FY 2025-26 per-member records) + close-vote/distribution flow. */
+const SEED_VERSION = 16;
 
 function seedStore(): Store {
   const store: Store = {
@@ -104,6 +107,7 @@ function seedStore(): Store {
     policy: structuredClone(SEED_POLICY),
     governance: buildGovernance(),
     surplus: seedSurplus(),
+    dividendHistory: seedDividendHistory(),
     forecast: generateForecast(),
     savedWorkers: ["w-meena", "w-priya"],
     openRequests: [],
@@ -269,6 +273,36 @@ function seedSurplus(): SurplusData {
   };
 }
 
+/** FY 2025-26 per-member dividend records — the narrative "what you received last
+ *  year" for the 12 demo members (₹9.2L pool, 216 members, avg ₹4,259 — amounts
+ *  weighted by each member's demo patronage rank). NOTE: builds its patronage
+ *  map from SEED_TRANSACTIONS directly — calling getStore() here would recurse
+ *  (the store is still being constructed). */
+function seedDividendHistory(): DividendDistribution[] {
+  const patronage = new Map<string, number>();
+  for (const t of SEED_TRANSACTIONS) patronage.set(t.workerId, (patronage.get(t.workerId) ?? 0) + t.gross);
+  const maxP = Math.max(1, ...patronage.values());
+  const total = Math.max(1, SEED_TRANSACTIONS.reduce((a, t) => a + t.gross, 0));
+  const distributedAt = new Date(Date.now() - 120 * DAY).toISOString();
+  let n = 0;
+  return [...patronage.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([workerId, p]) => {
+      n += 1;
+      return {
+        id: `div-2526-${String(n).padStart(3, "0")}`,
+        workerId,
+        fiscalYear: "2025-26",
+        patronage: p,
+        sharePct: Math.round((p / total) * 1000) / 10,
+        amount: 2200 + Math.round((4800 * p) / maxP),
+        reference: `DIV-2526-${String(n).padStart(3, "0")}`,
+        proposalCode: "PRO-2025-083",
+        distributedAt,
+      };
+    });
+}
+
 /** Admin view of the surplus plan with the live dividend preview. */
 export function surplusView(): AdminSurplusView {
   const surplus = getStore().surplus;
@@ -293,20 +327,31 @@ export function surplusView(): AdminSurplusView {
     dividendPool,
     avgDividend: surplus.sharingMembers > 0 ? Math.round(dividendPool / surplus.sharingMembers) : 0,
     memberPreview,
+    distributionLedger: getStore()
+      .dividendHistory.filter((r) => r.fiscalYear === surplus.fiscalYear)
+      .sort((a, b) => b.amount - a.amount)
+      .map((r) => {
+        const worker = getStore().workers.find((w) => w.id === r.workerId);
+        return { ...r, name: worker?.name ?? r.workerId, trade: worker?.tradeTitle ?? "—" };
+      }),
   };
 }
 
 /** Member-facing dividend projection from the LIVE surplus plan — identical math
  *  to surplusView(), so the admin's draft edits move every member's number. */
 export function memberDividendFor(workerId: string): MemberDividendView {
-  const surplus = getStore().surplus;
+  const store = getStore();
+  const surplus = store.surplus;
   const myPatronage = patronageByWorker().get(workerId) ?? 0;
   const dividendPool = Math.round((surplus.surplusYtd * (surplus.allocations.find((a) => a.key === "dividend")?.pct ?? 0)) / 100);
   const last = surplus.lastDistributed;
+  const history = store.dividendHistory.filter((d) => d.workerId === workerId);
+  const received = surplus.status === "distributed" ? history.find((d) => d.fiscalYear === surplus.fiscalYear) : undefined;
   return {
     fiscalYear: surplus.fiscalYear,
     status: surplus.status,
     proposal: surplus.proposal,
+    received,
     myPatronage,
     patronageTotal: surplus.patronageTotal,
     sharingMembers: surplus.sharingMembers,
@@ -317,6 +362,7 @@ export function memberDividendFor(workerId: string): MemberDividendView {
     surplusYtd: surplus.surplusYtd,
     dividendRatePct: myPatronage > 0 ? Math.round(((dividendPool * myPatronage) / Math.max(1, surplus.patronageTotal) / myPatronage) * 1000) / 10 : 0,
     allocations: surplus.allocations,
+    history,
     lastDistributed: { ...last, avgDividend: Math.round(last.patronageBonus / Math.max(1, last.members)) },
   };
 }
@@ -324,6 +370,7 @@ export function memberDividendFor(workerId: string): MemberDividendView {
 export function updateSurplusAllocation(pcts: Partial<Record<SurplusAllocationLine["key"], number>>): SurplusData {
   const surplus = getStore().surplus;
   if (surplus.status === "in_vote") throw new Error("This allocation is with the members for voting — a new draft must be opened after the vote closes");
+  if (surplus.status === "distributed") throw new Error(`The FY ${surplus.fiscalYear} allocation has been distributed — the next cycle opens a fresh draft`);
   const next = surplus.allocations.map((a) => {
     const raw = pcts[a.key];
     if (raw === undefined) return a;
@@ -344,6 +391,7 @@ export function submitSurplusProposal(actor: string): { proposal: GovernanceProp
   const store = getStore();
   const surplus = store.surplus;
   if (surplus.status === "in_vote") throw new Error("This allocation is already with the members for voting");
+  if (surplus.status === "distributed") throw new Error(`The FY ${surplus.fiscalYear} allocation has been distributed — the next cycle opens a fresh draft`);
   if (surplus.allocations.reduce((a, l) => a + l.pct, 0) !== 100) throw new Error("Allocation must total 100% before it can be voted on");
 
   /* Continue the PRO-2026-NNN numbering past every existing proposal. */
@@ -370,9 +418,11 @@ export function submitSurplusProposal(actor: string): { proposal: GovernanceProp
     category: "Finance & surplus",
     openedAt: new Date().toISOString(),
     closesAt,
-    participationPct: 0,
+    /* Other members vote asynchronously — the seeded base mirrors the wider
+     * membership's tallies on every other proposal (216 eligible, quorum 50%). */
+    participationPct: 61,
     eligibleMembers: 216,
-    votes: { approve: 0, reject: 0, abstain: 0 },
+    votes: { approve: 102, reject: 21, abstain: 8 },
     quorumPct: 50,
     fiscalNote: `₹${surplus.surplusYtd.toLocaleString("en-IN")} surplus · dividend pool ₹${dividendPool.toLocaleString("en-IN")} · welfare reserve untouched below ${surplus.allocations.find((a) => a.key === "reserves")?.minPct ?? 20}% floor`,
     proposedBy: `${actor} (Operations)`,
@@ -392,6 +442,102 @@ export function submitSurplusProposal(actor: string): { proposal: GovernanceProp
   }
   audit(`Published surplus allocation ${code} for member voting (dividend pool ₹${dividendPool.toLocaleString("en-IN")})`, "Surplus allocation", actor, "admin", "notice");
   return { proposal, surplus };
+}
+
+/* ------------------------------------------------------------------ */
+/* Close-the-vote: tally, quorum, outcome, surplus distribution       */
+/* ------------------------------------------------------------------ */
+
+/** Closes an active proposal's vote: tallies cast votes, checks quorum,
+ *  records the outcome and — when the SURPLUS proposal passes — executes the
+ *  distribution: per-member patronage-proportional dividend ledger entries,
+ *  notifications, audit, and the surplus state → "distributed".
+ *  A failed/lapsed surplus vote reopens the board draft. */
+export function closeProposal(
+  proposalId: string,
+  actor: string,
+): { proposal: GovernanceProposal; distribution?: { pool: number; members: number } } {
+  const store = getStore();
+  const idx = store.governance.activeProposals.findIndex((p) => p.id === proposalId);
+  if (idx === -1) throw new Error("Proposal not found or already closed");
+  const [proposal] = store.governance.activeProposals.splice(idx, 1);
+
+  const { approve, reject, abstain } = proposal.votes;
+  const voted = approve + reject + abstain;
+  const participation = Math.round((voted / Math.max(1, proposal.eligibleMembers)) * 100);
+  const quorumMet = participation >= proposal.quorumPct;
+  const passed = quorumMet && approve > reject;
+  proposal.status = quorumMet ? (passed ? "passed" : "rejected") : "closed";
+  proposal.participationPct = participation;
+  proposal.closesAt = new Date().toISOString();
+  proposal.outcomeNote = quorumMet
+    ? `${passed ? "Passed" : "Rejected"} — ${participation}% participation · ${approve} approve / ${reject} reject / ${abstain} abstain.`
+    : `Closed — quorum not met (${participation}% of ${proposal.eligibleMembers} eligible; ${proposal.quorumPct}% required). Referred back for reworking.`;
+  store.governance.pastProposals.unshift(proposal);
+
+  audit(
+    `Vote closed on ${proposal.code}: ${quorumMet ? (passed ? "passed" : "rejected") : "quorum not met"} (${participation}% participation)`,
+    "Governance proposal",
+    actor,
+    "admin",
+    quorumMet ? "notice" : "warning",
+  );
+
+  /* If this was the surplus allocation vote, execute (or revert) the plan. */
+  const surplus = store.surplus;
+  if (surplus.proposal?.id === proposal.id) {
+    if (passed) {
+      const dividendPool = Math.round((surplus.surplusYtd * (surplus.allocations.find((a) => a.key === "dividend")?.pct ?? 0)) / 100);
+      const patronage = patronageByWorker();
+      const now = new Date().toISOString();
+      let n = 0;
+      for (const [workerId, p] of patronage) {
+        n += 1;
+        const amount = Math.round((dividendPool * p) / Math.max(1, surplus.patronageTotal));
+        const sharePct = Math.round((p / Math.max(1, surplus.patronageTotal)) * 1000) / 10;
+        const record: DividendDistribution = {
+          id: `div-2627-${String(n).padStart(3, "0")}`,
+          workerId,
+          fiscalYear: surplus.fiscalYear,
+          patronage: p,
+          sharePct,
+          amount,
+          reference: `DIV-2627-${String(n).padStart(3, "0")}`,
+          proposalCode: proposal.code,
+          distributedAt: now,
+        };
+        store.dividendHistory.unshift(record);
+        notify(workerId, {
+          kind: "governance",
+          title: "Patronage dividend credited",
+          body: `₹${amount.toLocaleString("en-IN")} from the FY ${surplus.fiscalYear} surplus (${proposal.code}) — ${sharePct}% of patronage. Reference ${record.reference}.`,
+          route: { name: "worker-earnings" },
+        });
+      }
+      surplus.status = "distributed";
+      surplus.lastDistributed = {
+        fiscalYear: surplus.fiscalYear,
+        surplus: surplus.surplusYtd,
+        patronageBonus: dividendPool,
+        members: surplus.sharingMembers,
+        distributedAt: now,
+      };
+      audit(
+        `FY ${surplus.fiscalYear} surplus distributed: ₹${dividendPool.toLocaleString("en-IN")} patronage dividend across ${patronage.size} members (avg ₹${Math.round(dividendPool / Math.max(1, patronage.size)).toLocaleString("en-IN")})`,
+        "Surplus allocation",
+        actor,
+        "admin",
+        "notice",
+      );
+      return { proposal, distribution: { pool: dividendPool, members: patronage.size } };
+    }
+    /* Failed or lapsed — reopen the board draft for reworking. */
+    surplus.status = "draft";
+    surplus.proposal = undefined;
+    audit(`Surplus allocation ${proposal.code} did not pass — board draft reopened for reworking`, "Surplus allocation", actor, "admin", "warning");
+  }
+
+  return { proposal };
 }
 
 /* ------------------------------------------------------------------ */

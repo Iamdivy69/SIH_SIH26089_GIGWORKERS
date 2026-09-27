@@ -1,12 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { BellRing, CalendarDays, Plus, Vote } from "lucide-react";
+import { BellRing, CalendarDays, CheckCircle2, Plus, Vote } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -32,7 +43,7 @@ import {
   StatusBadge,
 } from "@/components/shared";
 import { FineNote, KpiStrip, KpiStripSkeleton } from "./ui";
-import { useAdminGovernance, useCreateProposal } from "@/hooks/use-api";
+import { useAdminGovernance, useCloseProposal, useCreateProposal } from "@/hooks/use-api";
 import { dateFull, money, moneyCompact, num, pctLabel } from "@/lib/format";
 import type { GovernanceProposal } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -218,6 +229,49 @@ export function AdminGovernanceScreen() {
   );
 }
 
+/** Close the vote: tallies, quorum check, outcome — and, for the surplus
+ *  proposal, executes the dividend distribution immediately on pass. */
+function CloseVoteButton({ proposal: p }: { proposal: GovernanceProposal }) {
+  const close = useCloseProposal();
+  const totalVotes = p.votes.approve + p.votes.reject + p.votes.abstain;
+  const quorumMet = p.participationPct >= p.quorumPct;
+  const isSurplus = p.category === "Finance & surplus";
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant={quorumMet ? "default" : "outline"} size="sm" disabled={close.isPending}>
+          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.9} />
+          {close.isPending ? "Closing…" : "Close vote & record outcome"}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Close the vote on {p.code}?</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <span className="space-y-2.5 block">
+              <span className="tnum block">
+                {num(totalVotes)} votes cast · {pctLabel(p.participationPct)} participation (quorum {pctLabel(p.quorumPct)}) ·{" "}
+                {num(p.votes.approve)} approve / {num(p.votes.reject)} reject / {num(p.votes.abstain)} abstain.
+              </span>
+              <span className="block">
+                {quorumMet
+                  ? "Quorum is met — a simple majority of decisive votes decides the outcome, and it is certified in the audit log."
+                  : "Quorum is NOT met — closing now records the proposal as lapsed and refers it back for reworking."}
+                {isSurplus && " This is the surplus allocation vote: if it passes, the patronage dividend distributes to members immediately; if it fails, the board draft reopens."}
+              </span>
+            </span>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep voting open</AlertDialogCancel>
+          <AlertDialogAction onClick={() => close.mutate(p.id)}>Close vote</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function ProposalCard({ proposal: p }: { proposal: GovernanceProposal }) {
   const totalVotes = p.votes.approve + p.votes.reject + p.votes.abstain;
   const daysLeft = Math.max(0, Math.ceil((+new Date(p.closesAt) - Date.now()) / DAY_MS));
@@ -293,19 +347,21 @@ function ProposalCard({ proposal: p }: { proposal: GovernanceProposal }) {
               </p>
             )}
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="self-start"
-            onClick={() =>
-              toast.success("Reminder drafted", {
-                description: `${num(p.eligibleMembers - Math.round((p.participationPct / 100) * p.eligibleMembers))} members who haven't voted yet will receive a nudge. (Simulated delivery)`,
-              })
-            }
-          >
-            <BellRing className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.9} />
-            Remind non-voters
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                toast.success("Reminder drafted", {
+                  description: `${num(p.eligibleMembers - Math.round((p.participationPct / 100) * p.eligibleMembers))} members who haven't voted yet will receive a nudge. (Simulated delivery)`,
+                })
+              }
+            >
+              <BellRing className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.9} />
+              Remind non-voters
+            </Button>
+            <CloseVoteButton proposal={p} />
+          </div>
         </div>
       </div>
     </article>

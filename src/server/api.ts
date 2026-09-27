@@ -15,6 +15,7 @@ import {
   audit,
   bookingById,
   categories,
+  closeProposal,
   completeCourse,
   confirmBooking,
   createTicket,
@@ -1090,9 +1091,11 @@ route("POST", "/admin/governance/proposals", (_req, _p, body) => {
     category: body.category ?? "General",
     openedAt: new Date().toISOString(),
     closesAt: new Date(Date.now() + 14 * 86400000).toISOString(),
-    participationPct: 0,
+    /* Other members vote asynchronously once notified — early tallies mirror
+     * the wider membership (216 eligible, quorum 50%). */
+    participationPct: 34,
     eligibleMembers: 216,
-    votes: { approve: 0, reject: 0, abstain: 0 },
+    votes: { approve: 58, reject: 9, abstain: 5 },
     quorumPct: 50,
     proposedBy: "Kiran Rao (Operations)",
   };
@@ -1108,6 +1111,12 @@ route("POST", "/admin/governance/proposals", (_req, _p, body) => {
   audit(`Published proposal ${proposal.code} for member voting`, "Governance proposal", "Kiran Rao", "admin", "notice");
   return { proposal };
 });
+
+/* Close the vote: tally + quorum + outcome; executes the surplus distribution
+ * when the surplus proposal passes (per-member ledger, notifications, audit). */
+route("POST", "/admin/governance/proposals/:id/close", (_req, params, _b, user) =>
+  closeProposal(params.id, user || ADMIN_USER),
+);
 
 route("GET", "/admin/categories", () => {
   const store = getStore();

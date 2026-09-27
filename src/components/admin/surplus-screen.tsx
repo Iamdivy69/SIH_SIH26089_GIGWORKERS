@@ -13,7 +13,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { Coins, Minus, Plus, RotateCcw, Save, Vote } from "lucide-react";
+import { CheckCircle2, Coins, Minus, Plus, RotateCcw, Save, Vote } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,8 +28,8 @@ import {
 import type { Column } from "@/components/shared";
 import { FineNote, KpiStrip, KpiStripSkeleton } from "./ui";
 import { useAdminSurplus, useSubmitSurplusProposal, useUpdateSurplusAllocation } from "@/hooks/use-api";
-import { dateFull, money, moneyCompact, num } from "@/lib/format";
-import type { SurplusAllocationKey, SurplusAllocationLine, SurplusMemberPreview } from "@/lib/types";
+import { dateFull, dateShort, money, moneyCompact, num } from "@/lib/format";
+import type { DividendDistribution, SurplusAllocationKey, SurplusAllocationLine, SurplusMemberPreview } from "@/lib/types";
 import { useAppStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +96,8 @@ export function AdminSurplusScreen() {
 
   const d = surplus.data;
   const inVote = d.status === "in_vote";
+  const distributed = d.status === "distributed";
+  const locked = inVote || distributed;
   const sum = d.allocations.reduce((acc, l) => acc + pcts[l.key], 0);
   const balanced = sum === 100;
   const dirty = d.allocations.some((l) => pcts[l.key] !== l.pct);
@@ -130,7 +132,11 @@ export function AdminSurplusScreen() {
       <PageHeader
         eyebrow="Cooperative"
         title="Surplus & dividends"
-        description={`FY ${d.fiscalYear} allocation · ${money(d.surplusYtd)} surplus to distribute with member approval`}
+        description={
+          distributed
+            ? `FY ${d.fiscalYear} allocation · distributed ${dateShort(d.lastDistributed.distributedAt)} with member approval`
+            : `FY ${d.fiscalYear} allocation · ${money(d.surplusYtd)} surplus to distribute with member approval`
+        }
       />
 
       <KpiStrip
@@ -141,8 +147,13 @@ export function AdminSurplusScreen() {
             value: money(d.surplusYtd),
             sub: `platform fees ${money(d.platformFeesYtd)} − costs ${money(d.operatingCostsYtd)}`,
           },
-          { label: "Dividend pool", value: money(livePool), sub: "at current allocation", tone: "positive" },
-          { label: "Avg dividend", value: money(liveAvg), sub: "per sharing member" },
+          {
+            label: "Dividend pool",
+            value: money(livePool),
+            sub: distributed ? "distributed to members" : "at current allocation",
+            tone: "positive",
+          },
+          { label: "Avg dividend", value: money(liveAvg), sub: distributed ? "credited per sharing member" : "per sharing member" },
           { label: "Patronage base", value: money(d.patronageTotal), sub: "completed service value FY" },
           { label: "Sharing members", value: num(d.sharingMembers), sub: "members with completed work" },
           { label: "Platform fees YTD", value: money(d.platformFeesYtd), sub: "6% processing share, settled" },
@@ -194,12 +205,14 @@ export function AdminSurplusScreen() {
         <SectionCard
           title="Proposed allocation"
           description={
-            inVote
-              ? "This is the split the members are voting on — editing is locked while the vote is open."
-              : "Adjust the split — the bar and dividend figures update live. Floors are member-approved guardrails, and the total must balance at 100% before saving."
+            distributed
+              ? "This split was approved by the members and executed — a read-only record of the FY distribution."
+              : inVote
+                ? "This is the split the members are voting on — editing is locked while the vote is open."
+                : "Adjust the split — the bar and dividend figures update live. Floors are member-approved guardrails, and the total must balance at 100% before saving."
           }
           actions={
-            !inVote && (
+            !locked && (
               <Button
                 size="sm"
                 onClick={onSend}
@@ -218,6 +231,27 @@ export function AdminSurplusScreen() {
             )
           }
         >
+          {distributed && (
+            <div
+              className="mb-5 flex flex-col gap-3 rounded-lg border border-success/40 bg-success-muted/60 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
+              role="status"
+            >
+              <p className="flex min-w-0 items-start gap-2.5 text-[13px] leading-relaxed">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success-deep" strokeWidth={1.9} aria-hidden />
+                <span>
+                  <span className="font-semibold text-success-deep">
+                    FY {d.fiscalYear} distribution executed {dateFull(d.lastDistributed.distributedAt)}.
+                  </span>{" "}
+                  {money(d.dividendPool)} patronage dividend across {num(d.lastDistributed.members)} members — every rupee credited
+                  patronage-proportionally and recorded in the ledger below and the audit log.
+                </span>
+              </p>
+              <Button variant="outline" size="sm" className="shrink-0" onClick={() => navigate("admin-audit")}>
+                Audit trail
+              </Button>
+            </div>
+          )}
+
           {inVote && d.proposal && (
             <AlertBanner
               severity="warning"
@@ -236,7 +270,7 @@ export function AdminSurplusScreen() {
                 line={line}
                 pct={pcts[line.key]}
                 amount={amountFor(pcts[line.key])}
-                locked={inVote}
+                locked={locked}
                 onStep={(next) => setPct(line, next)}
               />
             ))}
@@ -276,6 +310,20 @@ export function AdminSurplusScreen() {
               </div>
               <FineNote>
                 A new draft can be opened after the vote closes{d.proposal ? ` (${dateFull(d.proposal.closesAt)})` : ""}.
+              </FineNote>
+            </div>
+          ) : distributed ? (
+            <div className="mt-6 space-y-2 border-t pt-4">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Button variant="outline" size="sm" disabled title="This FY's allocation has been executed">
+                  <Vote className="mr-1.5 h-3.5 w-3.5" strokeWidth={1.9} />
+                  Send to member vote
+                </Button>
+                <p className="text-xs text-muted-foreground">FY {d.fiscalYear} is complete — the split above is the executed record.</p>
+              </div>
+              <FineNote>
+                The next cycle opens a fresh draft after FY close. Editing is disabled on an executed allocation — the record is
+                certified in the audit log.
               </FineNote>
             </div>
           ) : (
@@ -318,12 +366,49 @@ export function AdminSurplusScreen() {
           )}
         </SectionCard>
 
-        {/* ---------------- member dividend preview ---------------- */}
-        <SectionCard
-          title="Member dividend preview"
-          description="Dividends follow patronage — the completed service value each member delivered this year — never share count. One member, one vote."
-          forTable
-        >
+        {/* ---------------- member dividend preview / distribution ledger ---------------- */}
+        {distributed ? (
+          <SectionCard
+            title="Distribution ledger — executed"
+            description={`FY ${d.fiscalYear} dividends as credited, patronage-proportional, ${dateFull(d.lastDistributed.distributedAt)}. Immutable record — mirrors each member's own dividend history.`}
+            forTable
+          >
+            <DataTable
+              columns={ledgerColumns}
+              rows={d.distributionLedger}
+              getRowKey={(r) => r.id}
+              emptyTitle="No distribution records"
+              emptyDescription="Records appear here the moment a vote passes and the dividend executes."
+              mobileCard={(r) => (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <PersonAvatar name={r.name} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-medium">{r.name}</p>
+                      <p className="tnum truncate font-mono text-[11px] text-muted-foreground">{r.reference}</p>
+                    </div>
+                    <p className="tnum shrink-0 text-sm font-semibold text-success-deep">{money(r.amount)}</p>
+                  </div>
+                  <p className="tnum flex items-center justify-between pl-10 text-xs text-muted-foreground">
+                    <span>Patronage {money(r.patronage)}</span>
+                    <span>Share {r.sharePct.toFixed(1)}%</span>
+                  </p>
+                </div>
+              )}
+            />
+            <div className="border-t px-5 py-3">
+              <FineNote>
+                {num(d.distributionLedger.length)} records · pool {money(d.dividendPool)} · avg {money(liveAvg)} per member. Each
+                member was notified on execution and sees this entry in their Earnings → patronage-dividend history.
+              </FineNote>
+            </div>
+          </SectionCard>
+        ) : (
+          <SectionCard
+            title="Member dividend preview"
+            description="Dividends follow patronage — the completed service value each member delivered this year — never share count. One member, one vote."
+            forTable
+          >
           <DataTable
             columns={memberColumns}
             rows={previewRows}
@@ -347,18 +432,19 @@ export function AdminSurplusScreen() {
               </div>
             )}
           />
-          <div className="border-t px-5 py-3">
-            <FineNote>
-              Preview at the current dividend percentage — final figures are set by the member vote. Top{" "}
-              {num(previewRows.length)} of {num(d.sharingMembers)} sharing members by patronage; every member with
-              completed work this year shares in the distribution.
-            </FineNote>
-          </div>
-        </SectionCard>
+            <div className="border-t px-5 py-3">
+              <FineNote>
+                Preview at the current dividend percentage — final figures are set by the member vote. Top{" "}
+                {num(previewRows.length)} of {num(d.sharingMembers)} sharing members by patronage; every member with
+                completed work this year shares in the distribution.
+              </FineNote>
+            </div>
+          </SectionCard>
+        )}
 
         {/* ---------------- last year's distribution ---------------- */}
         <SectionCard
-          title={`Last year — FY ${ld.fiscalYear}`}
+          title={`Most recent completed distribution — FY ${ld.fiscalYear}`}
           description="The most recent completed distribution to member-owners."
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -508,5 +594,49 @@ const memberColumns: Column<SurplusMemberPreview>[] = [
     header: "Dividend",
     align: "right",
     cell: (m) => <span className="tnum text-[13px] font-semibold text-success-deep">{money(m.dividend)}</span>,
+  },
+];
+
+/** Executed-ledger columns — the frozen record after a vote passes. */
+const ledgerColumns: Column<DividendDistribution & { name: string; trade: string }>[] = [
+  {
+    key: "member",
+    header: "Member",
+    cell: (r) => (
+      <div className="flex items-center gap-2.5">
+        <PersonAvatar name={r.name} size="sm" />
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium leading-tight">{r.name}</p>
+          <p className="tnum mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{r.reference}</p>
+        </div>
+      </div>
+    ),
+  },
+  {
+    key: "patronage",
+    header: "Patronage value",
+    align: "right",
+    cell: (r) => <span className="tnum">{money(r.patronage)}</span>,
+  },
+  {
+    key: "share",
+    header: "Share",
+    align: "right",
+    cell: (r) => <span className="tnum text-muted-foreground">{r.sharePct.toFixed(1)}%</span>,
+  },
+  {
+    key: "dividend",
+    header: "Dividend paid",
+    align: "right",
+    cell: (r) => <span className="tnum text-[13px] font-semibold text-success-deep">{money(r.amount)}</span>,
+  },
+  {
+    key: "source",
+    header: "Proposal",
+    cell: (r) => (
+      <span className="tnum font-mono text-xs text-muted-foreground">
+        {r.proposalCode} · {dateShort(r.distributedAt)}
+      </span>
+    ),
   },
 ];
