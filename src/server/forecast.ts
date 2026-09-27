@@ -78,7 +78,7 @@ export function generateForecast(now = new Date()): ForecastData {
   const peaks: ForecastPeak[] = withGap
     .sort((a, b) => b.gap - a.gap || b.predicted - a.predicted)
     .slice(0, 4)
-    .map((c, i) => ({
+    .map((c, i): ForecastPeak => ({
       id: `peak-${i}`,
       day: c.day,
       slot: c.slot,

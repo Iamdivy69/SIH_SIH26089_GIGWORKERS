@@ -18,6 +18,7 @@ import type {
   GovernanceData,
   GovernanceProposal,
   InvoiceData,
+  MemberDividendView,
   OpenJobRequest,
   PlatformPolicy,
   ServiceCategory,
@@ -363,6 +364,11 @@ export function useWorkerEarnings() {
 
 export function useWelfare() {
   return useQuery({ queryKey: ["worker-welfare"], queryFn: () => apiClient.get<WelfareProfile>("worker/welfare") });
+}
+
+/** Member's live patronage-dividend projection from the board's current surplus draft. */
+export function useMemberDividend() {
+  return useQuery({ queryKey: ["worker-dividend"], queryFn: () => apiClient.get<MemberDividendView>("worker/dividend") });
 }
 
 export function useSubmitClaim() {

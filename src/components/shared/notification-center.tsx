@@ -104,7 +104,8 @@ export function NotificationCenterScreen({ role }: { role: Role }) {
 
   const visible = useMemo(() => {
     const f = FILTERS.find((x) => x.id === filter) ?? FILTERS[0];
-    return f.kinds ? items.filter((n) => f.kinds.includes(n.kind)) : items;
+    const kinds = f?.kinds;
+    return kinds ? items.filter((n) => kinds.includes(n.kind)) : items;
   }, [items, filter]);
 
   const groups = useMemo(() => {

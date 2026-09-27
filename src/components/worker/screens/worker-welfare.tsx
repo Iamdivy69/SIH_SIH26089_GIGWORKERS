@@ -16,6 +16,7 @@ import { useSubmitClaim, useWelfare } from "@/hooks/use-api";
 import { dateShort, money } from "@/lib/format";
 import type { WelfareBenefit, WelfareContribution } from "@/lib/types";
 import { QueryGate } from "../parts";
+import { MemberDividendStrip } from "../dividend";
 
 const BENEFIT_ICONS: Record<string, LucideIcon> = {
   "ben-health": HeartPulse,
@@ -174,6 +175,8 @@ export function WorkerWelfare() {
               <StatTile label="Cooperative match" value={money(data.coopMatchYtd)} sub="1:1 on the first ₹500 per quarter" />
               <StatTile label="Emergency assistance" value={money(data.emergencyAssistanceLimit)} sub="Interest-free advance limit" />
             </div>
+
+            <MemberDividendStrip />
 
             <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-3">
               <div className="min-w-0 space-y-6 lg:col-span-2">

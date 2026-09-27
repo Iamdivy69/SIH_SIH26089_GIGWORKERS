@@ -58,7 +58,8 @@ export function AdminFinanceScreen() {
   }
 
   const loading = finance.isLoading || !finance.data;
-  const d = finance.data;
+  /* Guarded by `loading` — safe in the !loading branches below. */
+  const d = finance.data!;
 
   return (
     <>

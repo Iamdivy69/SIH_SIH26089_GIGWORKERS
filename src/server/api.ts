@@ -23,6 +23,7 @@ import {
   getStore,
   invoiceFor,
   markModuleComplete,
+  memberDividendFor,
   notify,
   recurringMonthlyFor,
   settleBooking,
@@ -183,6 +184,20 @@ route("GET", "/customer/overview", (_req, _p, _b, user) => {
     .filter((b) => now - +new Date(b.createdAt) < 30 * 86400000 && b.paymentStatus !== "refunded")
     .reduce((a, b) => a + b.price.customerTotal, 0);
 
+  /* Cooperative impact — where this customer's money actually went, from their
+   * own completed bookings. Bill-line mapping: service + welfare flow to the
+   * member (pay + welfare fund), the processing fee runs the co-op, GST to the state. */
+  const settled = myBookings.filter((b) => b.status === "completed");
+  const impact = {
+    servicesCompleted: settled.length,
+    distinctMembers: new Set(settled.map((b) => b.workerId)).size,
+    totalPaid: settled.reduce((a, b) => a + b.price.customerTotal, 0),
+    toMembers: settled.reduce((a, b) => a + b.price.serviceCharge + b.price.welfareContribution, 0),
+    welfareFunded: settled.reduce((a, b) => a + b.price.welfareContribution, 0),
+    toCooperative: settled.reduce((a, b) => a + b.price.platformFee, 0),
+    gstPaid: settled.reduce((a, b) => a + b.price.gst, 0),
+  };
+
   /* Active standing-order series of this customer (an upcoming occurrence exists). */
   const activeSeries = new Set<string>();
   for (const b of myBookings) {
@@ -211,6 +226,7 @@ route("GET", "/customer/overview", (_req, _p, _b, user) => {
     completedCount: myBookings.filter((b) => b.status === "completed").length,
     savedWorkers: store.savedWorkers,
     activeStandingOrders: activeSeries.size,
+    impact,
   };
 });
 
@@ -658,6 +674,8 @@ route("GET", "/worker/earnings", (_req, _p, _b, user) => {
 });
 
 route("GET", "/worker/welfare", (_req, _p, _b, user) => welfareProfileFor(user || WORKER_USER));
+
+route("GET", "/worker/dividend", (_req, _p, _b, user) => memberDividendFor(user || WORKER_USER));
 
 route("POST", "/worker/welfare/claims", (_req, _p, body, user) => {
   const store = getStore();

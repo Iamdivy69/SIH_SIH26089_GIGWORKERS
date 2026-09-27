@@ -10,6 +10,7 @@ import type {
   GovernanceData,
   GovernanceProposal,
   InvoiceData,
+  MemberDividendView,
   OpenJobRequest,
   Payout,
   PlatformPolicy,
@@ -292,6 +293,31 @@ export function surplusView(): AdminSurplusView {
     dividendPool,
     avgDividend: surplus.sharingMembers > 0 ? Math.round(dividendPool / surplus.sharingMembers) : 0,
     memberPreview,
+  };
+}
+
+/** Member-facing dividend projection from the LIVE surplus plan — identical math
+ *  to surplusView(), so the admin's draft edits move every member's number. */
+export function memberDividendFor(workerId: string): MemberDividendView {
+  const surplus = getStore().surplus;
+  const myPatronage = patronageByWorker().get(workerId) ?? 0;
+  const dividendPool = Math.round((surplus.surplusYtd * (surplus.allocations.find((a) => a.key === "dividend")?.pct ?? 0)) / 100);
+  const last = surplus.lastDistributed;
+  return {
+    fiscalYear: surplus.fiscalYear,
+    status: surplus.status,
+    proposal: surplus.proposal,
+    myPatronage,
+    patronageTotal: surplus.patronageTotal,
+    sharingMembers: surplus.sharingMembers,
+    mySharePct: surplus.patronageTotal > 0 && myPatronage > 0 ? Math.round((myPatronage / surplus.patronageTotal) * 1000) / 10 : 0,
+    dividendPool,
+    myProjectedDividend: Math.round((dividendPool * myPatronage) / Math.max(1, surplus.patronageTotal)),
+    avgDividend: surplus.sharingMembers > 0 ? Math.round(dividendPool / surplus.sharingMembers) : 0,
+    surplusYtd: surplus.surplusYtd,
+    dividendRatePct: myPatronage > 0 ? Math.round(((dividendPool * myPatronage) / Math.max(1, surplus.patronageTotal) / myPatronage) * 1000) / 10 : 0,
+    allocations: surplus.allocations,
+    lastDistributed: { ...last, avgDividend: Math.round(last.patronageBonus / Math.max(1, last.members)) },
   };
 }
 

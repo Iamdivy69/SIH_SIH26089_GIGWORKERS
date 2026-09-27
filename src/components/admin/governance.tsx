@@ -55,7 +55,8 @@ export function AdminGovernanceScreen() {
   }
 
   const loading = governance.isLoading || !governance.data;
-  const d = governance.data;
+  /* Guarded by `loading` — safe in the !loading branches below. */
+  const d = governance.data!;
   const currentParticipation = d?.participationSeries[d.participationSeries.length - 1]?.value ?? 0;
 
   return (

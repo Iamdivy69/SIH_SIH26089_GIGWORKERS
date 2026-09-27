@@ -639,6 +639,45 @@ export interface AdminSurplusView extends SurplusData {
   memberPreview: SurplusMemberPreview[];
 }
 
+/** Member-facing view of the live surplus plan — "your patronage dividend".
+ *  Same store, same math as the admin view: when the board edits the draft,
+ *  every member's projection updates with it. */
+export interface MemberDividendView {
+  fiscalYear: string;
+  status: "draft" | "in_vote";
+  /** Present when the allocation is with the members for voting. */
+  proposal?: { id: string; code: string; closesAt: string };
+  /** This member's completed service value this FY — the patronage basis. */
+  myPatronage: number;
+  /** All members' patronage combined (the sharing base). */
+  patronageTotal: number;
+  /** Members with patronage > 0. */
+  sharingMembers: number;
+  /** This member's share of the patronage base, 1 decimal. */
+  mySharePct: number;
+  /** Dividend pool at the current draft allocation. */
+  dividendPool: number;
+  /** Projected dividend for this member — patronage-proportional. */
+  myProjectedDividend: number;
+  /** Pool ÷ sharing members (for context). */
+  avgDividend: number;
+  surplusYtd: number;
+  /** Dividend as a share of this member's own patronage, 1 decimal. */
+  dividendRatePct: number;
+  /** The board's current draft split — drives the mini allocation bar. */
+  allocations: SurplusAllocationLine[];
+  /** Last completed distribution, for honest scale context. */
+  lastDistributed: {
+    fiscalYear: string;
+    surplus: number;
+    patronageBonus: number;
+    members: number;
+    distributedAt: string;
+    /** patronageBonus ÷ members. */
+    avgDividend: number;
+  };
+}
+
 export interface OpenJobRequest {
   id: string;
   title: string;
@@ -740,6 +779,28 @@ export interface CustomerOverview {
   savedWorkers: string[];
   /** The customer's own active standing-order series count. */
   activeStandingOrders: number;
+  /** Where the money this customer has paid actually went — the cooperative story, from their own completed bookings. */
+  impact: CustomerImpact;
+}
+
+/** Customer-side money-flow summary across completed bookings.
+ *  Maps the bill lines exactly: service + welfare flow to the member,
+ *  the processing fee runs the cooperative, GST goes to the state. */
+export interface CustomerImpact {
+  /** Completed (settled) bookings counted. */
+  servicesCompleted: number;
+  /** Distinct service members this customer has helped earn. */
+  distinctMembers: number;
+  /** Sum of customer totals across completed bookings. */
+  totalPaid: number;
+  /** Service charges + welfare contributions — money flowing to members. */
+  toMembers: number;
+  /** Welfare share of that — funds members' safety net. */
+  welfareFunded: number;
+  /** Platform processing fees — cooperative operations. */
+  toCooperative: number;
+  /** GST paid on processing fees. */
+  gstPaid: number;
 }
 
 export interface WorkerOverview {

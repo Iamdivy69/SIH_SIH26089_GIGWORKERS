@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   ArrowRight,
   CalendarPlus,
+  HandCoins,
   HeartHandshake,
   LifeBuoy,
   Receipt,
@@ -21,6 +22,95 @@ import { setSearchHandoff } from "../prefill";
 import { useWorkerMap } from "../hooks";
 import { WorkerCard } from "../parts/worker-card";
 import { BookingCard } from "../parts/booking-card";
+
+/** Where this customer's money went — their own cooperative story,
+ *  derived from their completed bookings (not a marketing number). */
+function ImpactCard({
+  impact,
+  onPayments,
+}: {
+  impact: {
+    servicesCompleted: number;
+    distinctMembers: number;
+    totalPaid: number;
+    toMembers: number;
+    welfareFunded: number;
+    toCooperative: number;
+    gstPaid: number;
+  };
+  onPayments: () => void;
+}) {
+  const total = Math.max(1, impact.totalPaid);
+  const segments = [
+    { label: "To service members", note: "pay + their welfare fund", amount: impact.toMembers, cls: "bg-success" },
+    { label: "Cooperative operations", note: "verification, tools, training", amount: impact.toCooperative, cls: "bg-primary" },
+    { label: "GST", note: "on the processing fee", amount: impact.gstPaid, cls: "bg-muted-foreground/50" },
+  ];
+
+  return (
+    <section aria-label="Your cooperative impact" className="rounded-lg border bg-card p-5">
+      <div className="flex items-start gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border bg-muted/50 text-success-deep">
+          <HandCoins className="h-4 w-4" strokeWidth={1.9} aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-semibold leading-tight tracking-tight">Your cooperative impact</h3>
+          <p className="mt-0.5 text-xs leading-snug text-muted-foreground">Where the money you've paid actually went</p>
+        </div>
+      </div>
+
+      {impact.totalPaid === 0 ? (
+        <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+          Your impact starts with your first completed service — every rupee of it stays traceable on the invoice.
+        </p>
+      ) : (
+        <>
+          <p className="tnum mt-4 text-2xl font-semibold tracking-tight">
+            {money(impact.toMembers)}
+            <span className="ml-2 text-xs font-normal text-muted-foreground">to service members</span>
+          </p>
+          <p className="tnum mt-1 text-xs text-muted-foreground">
+            of {money(impact.totalPaid)} paid across {impact.servicesCompleted} services · {impact.distinctMembers} member
+            {impact.distinctMembers === 1 ? "" : "s"} supported
+          </p>
+
+          <div
+            className="mt-4 flex h-2 w-full overflow-hidden rounded-full bg-muted"
+            role="img"
+            aria-label={`Of ${money(impact.totalPaid)} paid: ${segments.map((s) => `${s.label} ${money(s.amount)}`).join(", ")}`}
+          >
+            {segments.map((s) =>
+              s.amount > 0 ? <div key={s.label} className={`h-full ${s.cls}`} style={{ width: `${(s.amount / total) * 100}%` }} /> : null,
+            )}
+          </div>
+          <dl className="mt-3 space-y-1.5">
+            {segments.map((s) => (
+              <div key={s.label} className="flex items-baseline justify-between gap-3 text-[13px]">
+                <dt className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                  <span className={`h-2 w-2 shrink-0 rounded-[2px] ${s.cls}`} aria-hidden />
+                  <span className="truncate">{s.label}</span>
+                </dt>
+                <dd className="tnum shrink-0 font-medium">
+                  {money(s.amount)}
+                  <span className="ml-1 text-[11px] font-normal text-muted-foreground">{Math.round((s.amount / total) * 100)}%</span>
+                </dd>
+              </div>
+            ))}
+          </dl>
+
+          <p className="mt-4 rounded-md bg-success-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            <span className="tnum font-medium text-success-deep">{money(impact.welfareFunded)}</span> of that funds your members'
+            welfare — health checks, accident cover and pensions. No private platform builds this.
+          </p>
+          <Button variant="outline" size="sm" className="mt-4 w-full" onClick={onPayments}>
+            <Receipt className="h-3.5 w-3.5" strokeWidth={1.9} />
+            Every rupee traced — payments
+          </Button>
+        </>
+      )}
+    </section>
+  );
+}
 
 export function HomeScreen() {
   const navigate = useAppStore((s) => s.navigate);
@@ -250,6 +340,9 @@ export function HomeScreen() {
               <StatInline label="Completed services" value={String(data?.completedCount ?? 0)} />
             </dl>
           </SectionCard>
+
+          {/* Cooperative impact — the customer-side money-flow story */}
+          {data?.impact ? <ImpactCard impact={data.impact} onPayments={() => navigate("customer-payments")} /> : null}
 
           {/* Trust strip */}
           <section className="rounded-lg border bg-primary-muted p-5">

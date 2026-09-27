@@ -13,6 +13,7 @@ import { computePrice } from "@/lib/rates";
 import { dateShort, money, num } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 import { QueryGate, simulatedToast } from "../parts";
+import { MemberDividendCard } from "../dividend";
 
 function TransactionDialog({ txn, onClose }: { txn: Transaction | null; onClose: () => void }) {
   const price = txn ? computePrice(txn.gross - txn.welfareContribution) : null;
@@ -182,6 +183,8 @@ export function WorkerEarnings() {
                 </div>
 
                 <div className="space-y-6">
+                  <MemberDividendCard />
+
                   <SectionCard title="How your payout is calculated" description="Rates are cooperative policy — changed only by member vote.">
                     <dl className="space-y-2 text-[13px]">
                       <div className="flex items-baseline justify-between gap-3">

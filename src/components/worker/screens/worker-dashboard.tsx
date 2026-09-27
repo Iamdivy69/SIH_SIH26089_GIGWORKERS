@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAppStore } from "@/store/app-store";
-import { useGovernance, useWorkerJobs, useWorkerOverview } from "@/hooks/use-api";
+import { useGovernance, useMemberDividend, useWorkerJobs, useWorkerOverview } from "@/hooks/use-api";
 import {
   AlertBanner,
   EmptyState,
@@ -53,6 +53,7 @@ export function WorkerDashboard() {
   const overview = useWorkerOverview();
   const jobs = useWorkerJobs();
   const governance = useGovernance();
+  const dividend = useMemberDividend();
 
   if (overview.isPending || jobs.isPending) return <DashboardSkeleton />;
   if (overview.isError) {
@@ -220,6 +221,29 @@ export function WorkerDashboard() {
                   </Button>
                 </div>
                 <Separator />
+                {dividend.data && (
+                  <>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="micro-label">Patronage dividend · FY {dividend.data.fiscalYear}</p>
+                        <p className="tnum mt-0.5 text-lg font-semibold tracking-tight text-success-deep">
+                          {money(dividend.data.myProjectedDividend)}
+                          <span className="ml-1.5 text-xs font-normal text-muted-foreground">projected</span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {dividend.data.status === "in_vote"
+                            ? `In vote now${dividend.data.proposal ? ` — ${dividend.data.proposal.code}` : ""}`
+                            : "Board draft — moves live, paid only after the member vote"}
+                        </p>
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-7 shrink-0 text-xs" onClick={() => navigate("worker-earnings")}>
+                        Details
+                        <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.9} />
+                      </Button>
+                    </div>
+                    <Separator />
+                  </>
+                )}
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="micro-label">Active benefits</p>
