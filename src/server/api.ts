@@ -1,4 +1,3 @@
-import { NextRequest } from "next/server";
 import type {
   Booking,
   BookingStatus,
@@ -52,7 +51,7 @@ const LATENCY = 200;
 /* Router                                                              */
 /* ------------------------------------------------------------------ */
 
-type Handler = (req: NextRequest, params: Params, body: any, user: string) => Promise<unknown> | unknown;
+type Handler = (req: Request, params: Params, body: any, user: string) => Promise<unknown> | unknown;
 
 const routes: { method: string; pattern: RegExp; keys: string[]; handler: Handler }[] = [];
 
@@ -75,7 +74,7 @@ function route(method: string, path: string, handler: Handler) {
   routes.push({ method, pattern, keys, handler });
 }
 
-export async function handle(req: NextRequest, slug: string[]): Promise<Response> {
+export async function handle(req: Request, slug: string[]): Promise<Response> {
   await new Promise((r) => setTimeout(r, LATENCY));
   const path = "/" + slug.join("/");
   const method = req.method.toUpperCase();

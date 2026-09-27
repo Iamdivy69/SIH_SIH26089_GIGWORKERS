@@ -1,8 +1,6 @@
-"use client";
-
 /**
  * Sahyog — Cooperative Gig Services Platform (SIH26089)
- * Single-route application shell. All experiences (customer / worker / admin)
+ * Single-route React application shell. All experiences (customer / worker / admin)
  * are rendered client-side behind the hash router; see src/store/app-store.ts.
  */
 import { Providers } from "@/components/platform/providers";
@@ -13,7 +11,7 @@ import { WorkerApp } from "@/components/worker/worker-app";
 import { AdminApp } from "@/components/admin/admin-app";
 import { useAppStore } from "@/store/app-store";
 
-export default function Home() {
+export default function App() {
   return (
     <Providers>
       <Root />
