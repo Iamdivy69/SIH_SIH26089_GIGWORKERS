@@ -8,6 +8,7 @@ import {
   Camera,
   MessageSquare,
   Phone,
+  Receipt,
   Star,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -154,6 +155,16 @@ export function BookingDetailScreen({ bookingId }: { bookingId: string }) {
         actions={
           <>
             <StatusBadge status={booking.status} />
+            {["authorized", "settled"].includes(booking.paymentStatus) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate("customer-invoice", { bookingId: booking.id })}
+                aria-label="View the GST tax invoice for this booking"
+              >
+                <Receipt className="h-3.5 w-3.5" strokeWidth={1.9} /> View invoice
+              </Button>
+            )}
             {booking.status === "completed" && (
               <Button
                 variant="outline"

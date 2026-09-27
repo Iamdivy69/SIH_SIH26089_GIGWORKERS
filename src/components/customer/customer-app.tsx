@@ -7,6 +7,7 @@ import { WorkerScreen } from "./screens/worker-screen";
 import { BookingFlowScreen } from "./screens/booking-flow";
 import { BookingsScreen } from "./screens/bookings-screen";
 import { BookingDetailScreen } from "./screens/booking-detail";
+import { InvoiceScreen } from "./screens/invoice-screen";
 import { PaymentsScreen } from "./screens/payments-screen";
 import { SupportScreen } from "./screens/support-screen";
 import { ProfileScreen } from "./screens/profile-screen";
@@ -31,6 +32,8 @@ export function CustomerApp({ route }: { route: AppRoute }) {
       return <BookingsScreen />;
     case "customer-booking":
       return <BookingDetailScreen key={route.params.bookingId} bookingId={route.params.bookingId} />;
+    case "customer-invoice":
+      return <InvoiceScreen key={route.params.bookingId} bookingId={route.params.bookingId} />;
     case "customer-payments":
       return <PaymentsScreen />;
     case "customer-support":

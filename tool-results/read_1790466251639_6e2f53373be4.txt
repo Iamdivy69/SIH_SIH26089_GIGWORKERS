@@ -1,0 +1,687 @@
+     1→"use client";
+     2→
+     3→import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+     4→import { toast } from "sonner";
+     5→import { apiClient } from "@/lib/api-client";
+     6→import { DEMO_USER_ID, useRole } from "@/store/app-store";
+     7→import type {
+     8→  AdminOverview,
+     9→  AdminSurplusView,
+    10→  AdminTrainingData,
+    11→  AppNotification,
+    12→  Booking,
+    13→  BookingMessage,
+    14→  BookingRecurrence,
+    15→  CustomerOverview,
+    16→  FinanceOverview,
+    17→  ForecastData,
+    18→  GovernanceData,
+    19→  GovernanceProposal,
+    20→  InvoiceData,
+    21→  OpenJobRequest,
+    22→  PlatformPolicy,
+    23→  ServiceCategory,
+    24→  ServiceCategoryId,
+    25→  SkillCourse,
+    26→  SurplusAllocationKey,
+    27→  SupportTicket,
+    28→  TrainingCertificate,
+    29→  TrainingEnrollment,
+    30→  Transaction,
+    31→  Worker,
+    32→  WorkerAvailabilitySlot,
+    33→  WorkerOverview,
+    34→  WorkerRecommendation,
+    35→  WorkerTrainingData,
+    36→  WelfareProfile,
+    37→  WorkerCertification,
+    38→  VerificationItem,
+    39→  Review,
+    40→  Customer,
+    41→} from "@/lib/types";
+    42→
+    43→/* ----------------------------- shared ----------------------------- */
+    44→
+    45→export interface SessionResponse {
+    46→  platform: { name: string; fullName: string; tagline: string; prototype: boolean };
+    47→  users: Record<"customer" | "worker" | "admin", { id: string; name: string; role: string; subtitle: string; locality: string }>;
+    48→  rates: { commissionPct: number; welfarePct: number; gstPct: number; tdsPct: number };
+    49→  generatedAt: string;
+    50→}
+    51→
+    52→export function useSession() {
+    53→  return useQuery({ queryKey: ["session"], queryFn: () => apiClient.get<SessionResponse>("session"), staleTime: 5 * 60_000 });
+    54→}
+    55→
+    56→export function useNotifications() {
+    57→  const role = useRole();
+    58→  return useQuery({
+    59→    queryKey: ["notifications", role],
+    60→    queryFn: () => apiClient.get<{ items: AppNotification[]; unread: number }>("notifications", { user: DEMO_USER_ID[role] }),
+    61→    refetchInterval: 20_000,
+    62→  });
+    63→}
+    64→
+    65→export function useMarkNotificationsRead() {
+    66→  const qc = useQueryClient();
+    67→  return useMutation({
+    68→    mutationFn: (input: { ids?: string[]; all?: boolean }) => apiClient.post("notifications/read", input),
+    69→    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+    70→  });
+    71→}
+    72→
+    73→export function useCategories() {
+    74→  return useQuery({ queryKey: ["categories"], queryFn: () => apiClient.get<ServiceCategory[]>("categories"), staleTime: 5 * 60_000 });
+    75→}
+    76→
+    77→/* ---------------------------- customer ----------------------------- */
+    78→
+    79→export function useCustomerOverview() {
+    80→  return useQuery({ queryKey: ["customer-overview"], queryFn: () => apiClient.get<CustomerOverview>("customer/overview") });
+    81→}
+    82→
+    83→export interface WorkerFilters {
+    84→  q?: string;
+    85→  category?: string;
+    86→  minRating?: number;
+    87→  maxDistance?: number;
+    88→  verifiedOnly?: boolean;
+    89→  availableToday?: boolean;
+    90→  sort?: string;
+    91→}
+    92→
+    93→export function useWorkers(filters: WorkerFilters) {
+    94→  const params = new URLSearchParams();
+    95→  Object.entries(filters).forEach(([k, v]) => {
+    96→    if (v !== undefined && v !== "" && v !== false) params.set(k, String(v));
+    97→  });
+    98→  return useQuery({
+    99→    queryKey: ["workers", filters],
+   100→    queryFn: () => apiClient.get<{ items: Worker[]; total: number }>(`workers?${params.toString()}`),
+   101→  });
+   102→}
+   103→
+   104→export function useWorkerProfile(id: string | undefined) {
+   105→  return useQuery({
+   106→    queryKey: ["worker", id],
+   107→    queryFn: () =>
+   108→      apiClient.get<{
+   109→        worker: Worker;
+   110→        reviews: Review[];
+   111→        bookingsDone: number;
+   112→        similar: Worker[];
+   113→        saved: boolean;
+   114→        /** Cooperative training credentials (certificates) earned by this member. */
+   115→        certificates: TrainingCertificate[];
+   116→      }>(`workers/${id}`),
+   117→    enabled: Boolean(id),
+   118→  });
+   119→}
+   120→
+   121→export function useToggleSaveWorker() {
+   122→  const qc = useQueryClient();
+   123→  return useMutation({
+   124→    mutationFn: (workerId: string) => apiClient.post<{ saved: boolean }>(`workers/${workerId}/save`),
+   125→    onSuccess: () => {
+   126→      qc.invalidateQueries({ queryKey: ["worker"] });
+   127→      qc.invalidateQueries({ queryKey: ["customer-overview"] });
+   128→    },
+   129→  });
+   130→}
+   131→
+   132→export interface MatchingInput {
+   133→  categoryId: ServiceCategoryId;
+   134→  serviceId?: string;
+   135→  description?: string;
+   136→  scheduledAt: string;
+   137→  charge: number;
+   138→}
+   139→
+   140→export function useMatching() {
+   141→  return useMutation({
+   142→    mutationFn: (input: MatchingInput) =>
+   143→      apiClient.post<{ recommendations: WorkerRecommendation[]; weights: Record<string, number>; estimate: ReturnType<typeof import("@/lib/rates").computePrice> }>("matching", input),
+   144→  });
+   145→}
+   146→
+   147→export interface CreateBookingInput {
+   148→  workerId: string;
+   149→  categoryId: ServiceCategoryId;
+   150→  serviceId: string;
+   151→  description: string;
+   152→  addressId: string;
+   153→  scheduledAt: string;
+   154→  customerNotes?: string;
+   155→  matchScore?: number;
+   156→  charge: number;
+   157→  /** Standing-order frequency; omit (or "one-time") for a regular booking. */
+   158→  recurrence?: BookingRecurrence;
+   159→}
+   160→
+   161→export function useCreateBooking() {
+   162→  const qc = useQueryClient();
+   163→  return useMutation({
+   164→    mutationFn: (input: CreateBookingInput) => apiClient.post<{ booking: Booking }>("bookings", input),
+   165→    onSuccess: () => {
+   166→      qc.invalidateQueries({ queryKey: ["customer-overview"] });
+   167→      qc.invalidateQueries({ queryKey: ["bookings"] });
+   168→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   169→    },
+   170→  });
+   171→}
+   172→
+   173→export function useBookings(scope: { customerId?: string; workerId?: string; status?: string }) {
+   174→  const params = new URLSearchParams(Object.fromEntries(Object.entries(scope).filter(([, v]) => Boolean(v)) as [string, string][]));
+   175→  return useQuery({
+   176→    queryKey: ["bookings", scope],
+   177→    queryFn: () => apiClient.get<{ items: Booking[] }>(`bookings?${params.toString()}`),
+   178→  });
+   179→}
+   180→
+   181→export interface BookingDetail {
+   182→  booking: Booking;
+   183→  worker: Worker;
+   184→  customer: Customer;
+   185→  address: Customer["addresses"][number];
+   186→  review: Review | null;
+   187→}
+   188→
+   189→export function useBooking(id: string | undefined) {
+   190→  return useQuery({ queryKey: ["booking", id], queryFn: () => apiClient.get<BookingDetail>(`bookings/${id}`), enabled: Boolean(id) });
+   191→}
+   192→
+   193→/** Send a message in the booking-scoped customer↔worker thread. */
+   194→export function useSendMessage() {
+   195→  const qc = useQueryClient();
+   196→  return useMutation({
+   197→    mutationFn: ({ id, text }: { id: string; text: string }) => apiClient.post<{ message: BookingMessage }>(`bookings/${id}/messages`, { text }),
+   198→    onSuccess: (_d, vars) => {
+   199→      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+   200→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   201→    },
+   202→    onError: (err) => toast.error("Message not sent", { description: err instanceof Error ? err.message : undefined }),
+   203→  });
+   204→}
+   205→
+   206→export function useCancelBooking() {
+   207→  const qc = useQueryClient();
+   208→  return useMutation({
+   209→    mutationFn: ({ id, reason }: { id: string; reason?: string }) => apiClient.post<{ booking: Booking }>(`bookings/${id}/cancel`, { reason }),
+   210→    onSuccess: (_d, vars) => {
+   211→      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+   212→      qc.invalidateQueries({ queryKey: ["bookings"] });
+   213→      qc.invalidateQueries({ queryKey: ["customer-overview"] });
+   214→      toast.success("Booking cancelled", { description: "Any amount held will be refunded to your payment method." });
+   215→    },
+   216→  });
+   217→}
+   218→
+   219→export function useConfirmBooking() {
+   220→  const qc = useQueryClient();
+   221→  return useMutation({
+   222→    mutationFn: ({ id, rating, comment, tags }: { id: string; rating?: number; comment?: string; tags?: string[] }) =>
+   223→      apiClient.post<{ booking: Booking }>(`bookings/${id}/confirm`, { rating, comment, tags }),
+   224→    onSuccess: (_d, vars) => {
+   225→      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+   226→      qc.invalidateQueries({ queryKey: ["bookings"] });
+   227→      qc.invalidateQueries({ queryKey: ["customer-overview"] });
+   228→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   229→      toast.success("Service confirmed", { description: "Payment has been settled to your service member." });
+   230→    },
+   231→  });
+   232→}
+   233→
+   234→export function useRateBooking() {
+   235→  const qc = useQueryClient();
+   236→  return useMutation({
+   237→    mutationFn: ({ id, rating, comment, tags }: { id: string; rating: number; comment: string; tags: string[] }) =>
+   238→      apiClient.post<{ review: Review; workerRating: number }>(`bookings/${id}/rate`, { rating, comment, tags }),
+   239→    onSuccess: (_d, vars) => {
+   240→      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+   241→      qc.invalidateQueries({ queryKey: ["worker"] });
+   242→      toast.success("Rating submitted", { description: "Thank you — ratings keep quality visible for everyone." });
+   243→    },
+   244→  });
+   245→}
+   246→
+   247→/* ----------------------------- worker ------------------------------ */
+   248→
+   249→export function useWorkerOverview() {
+   250→  return useQuery({ queryKey: ["worker-overview"], queryFn: () => apiClient.get<WorkerOverview>("worker/overview") });
+   251→}
+   252→
+   253→export interface WorkerJobsData {
+   254→  offers: Booking[];
+   255→  openRequests: OpenJobRequest[];
+   256→  scheduled: Booking[];
+   257→  active: Booking[];
+   258→  awaiting: Booking[];
+   259→  history: Booking[];
+   260→  worker: Worker;
+   261→}
+   262→
+   263→export function useWorkerJobs() {
+   264→  return useQuery({ queryKey: ["worker-jobs"], queryFn: () => apiClient.get<WorkerJobsData>("worker/jobs") });
+   265→}
+   266→
+   267→export function useJobAction() {
+   268→  const qc = useQueryClient();
+   269→  return useMutation({
+   270→    mutationFn: ({ id, action }: { id: string; action: "accept" | "decline" }) =>
+   271→      apiClient.post<{ booking?: Booking }>(`worker/jobs/${id}/${action}`),
+   272→    onSuccess: (_d, vars) => {
+   273→      qc.invalidateQueries({ queryKey: ["worker-jobs"] });
+   274→      qc.invalidateQueries({ queryKey: ["worker-overview"] });
+   275→      qc.invalidateQueries({ queryKey: ["bookings"] });
+   276→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   277→      qc.invalidateQueries({ queryKey: ["booking"] });
+   278→      if (vars.action === "accept") toast.success("Job accepted", { description: "Added to your schedule. The customer has been informed." });
+   279→      else toast("Job declined", { description: "We'll offer it to other nearby members." });
+   280→    },
+   281→  });
+   282→}
+   283→
+   284→export function useBookingStatus() {
+   285→  const qc = useQueryClient();
+   286→  return useMutation({
+   287→    mutationFn: ({ id, status }: { id: string; status: "en_route" | "arrived" | "in_progress" }) =>
+   288→      apiClient.post<{ booking: Booking }>(`bookings/${id}/status`, { status }),
+   289→    onSuccess: (_d, vars) => {
+   290→      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+   291→      qc.invalidateQueries({ queryKey: ["worker-jobs"] });
+   292→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   293→    },
+   294→  });
+   295→}
+   296→
+   297→export function useChecklistToggle() {
+   298→  const qc = useQueryClient();
+   299→  return useMutation({
+   300→    mutationFn: ({ id, itemId, done }: { id: string; itemId: string; done: boolean }) =>
+   301→      apiClient.post<{ booking: Booking }>(`bookings/${id}/checklist`, { itemId, done }),
+   302→    onSuccess: (_d, vars) => {
+   303→      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+   304→    },
+   305→  });
+   306→}
+   307→
+   308→export function useCaptureEvidence() {
+   309→  const qc = useQueryClient();
+   310→  return useMutation({
+   311→    mutationFn: ({ id, phase, label }: { id: string; phase: "before" | "after"; label: string }) =>
+   312→      apiClient.post<{ booking: Booking }>(`bookings/${id}/evidence`, { phase, label }),
+   313→    onSuccess: (_d, vars) => {
+   314→      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+   315→    },
+   316→  });
+   317→}
+   318→
+   319→export function useCompleteBooking() {
+   320→  const qc = useQueryClient();
+   321→  return useMutation({
+   322→    mutationFn: (id: string) => apiClient.post<{ booking: Booking }>(`bookings/${id}/complete`),
+   323→    onSuccess: (_d, id) => {
+   324→      qc.invalidateQueries({ queryKey: ["booking", id] });
+   325→      qc.invalidateQueries({ queryKey: ["worker-jobs"] });
+   326→      qc.invalidateQueries({ queryKey: ["worker-overview"] });
+   327→      qc.invalidateQueries({ queryKey: ["worker-earnings"] });
+   328→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   329→      toast.success("Service completed", { description: "Payment will settle once the customer confirms. They've been notified." });
+   330→    },
+   331→    onError: (err: Error) => toast.error("Cannot complete yet", { description: err.message }),
+   332→  });
+   333→}
+   334→
+   335→export interface WorkerEarnings {
+   336→  summary: {
+   337→    availableBalance: number;
+   338→    pendingSettlement: number;
+   339→    weekEarnings: number;
+   340→    monthEarnings: number;
+   341→    completedJobs: number;
+   342→    avgPerJob: number;
+   343→    welfareYtd: number;
+   344→    tdsYtd: number;
+   345→    grossMonth: number;
+   346→    platformFeesMonth: number;
+   347→    welfareMonth: number;
+   348→    /** Estimated monthly net from active standing orders (weekly ×4.33, monthly ×1). */
+   349→    recurringMonthly: number;
+   350→    /** Count of active standing-order series. */
+   351→    standingOrders: number;
+   352→  };
+   353→  weeklySeries: { label: string; value: number }[];
+   354→  transactions: Transaction[];
+   355→  payouts: import("@/lib/types").Payout[];
+   356→  rates: { commissionPct: number; welfarePct: number; gstPct: number; tdsPct: number };
+   357→  nextPayoutDate: string;
+   358→}
+   359→
+   360→export function useWorkerEarnings() {
+   361→  return useQuery({ queryKey: ["worker-earnings"], queryFn: () => apiClient.get<WorkerEarnings>("worker/earnings") });
+   362→}
+   363→
+   364→export function useWelfare() {
+   365→  return useQuery({ queryKey: ["worker-welfare"], queryFn: () => apiClient.get<WelfareProfile>("worker/welfare") });
+   366→}
+   367→
+   368→export function useSubmitClaim() {
+   369→  const qc = useQueryClient();
+   370→  return useMutation({
+   371→    mutationFn: (input: { type: string; amount: number; description: string }) =>
+   372→      apiClient.post<{ claim: WelfareProfile["claims"][number] }>("worker/welfare/claims", input),
+   373→    onSuccess: () => {
+   374→      qc.invalidateQueries({ queryKey: ["worker-welfare"] });
+   375→      toast.success("Claim submitted", { description: "Expect a decision within 3 working days. Reference shared in notifications." });
+   376→    },
+   377→  });
+   378→}
+   379→
+   380→export function useSchedule() {
+   381→  return useQuery({
+   382→    queryKey: ["worker-schedule"],
+   383→    queryFn: () => apiClient.get<{ bookings: Booking[]; worker: Worker }>("worker/schedule"),
+   384→  });
+   385→}
+   386→
+   387→export function useAvailability() {
+   388→  return useQuery({ queryKey: ["worker-availability"], queryFn: () => apiClient.get<WorkerAvailabilitySlot[]>("worker/availability") });
+   389→}
+   390→
+   391→export function useSaveAvailability() {
+   392→  const qc = useQueryClient();
+   393→  return useMutation({
+   394→    mutationFn: (availability: WorkerAvailabilitySlot[]) => apiClient.put<{ availability: WorkerAvailabilitySlot[] }>("worker/availability", { availability }),
+   395→    onSuccess: () => {
+   396→      qc.invalidateQueries({ queryKey: ["worker-availability"] });
+   397→      qc.invalidateQueries({ queryKey: ["worker-overview"] });
+   398→      toast.success("Availability updated", { description: "You'll receive offers matching these slots." });
+   399→    },
+   400→  });
+   401→}
+   402→
+   403→export function useVerification() {
+   404→  return useQuery({
+   405→    queryKey: ["worker-verification"],
+   406→    queryFn: () => apiClient.get<{ worker: Worker; verification: VerificationItem[]; certifications: WorkerCertification[] }>("worker/verification"),
+   407→  });
+   408→}
+   409→
+   410→export function useSkills() {
+   411→  return useQuery({
+   412→    queryKey: ["worker-skills"],
+   413→    queryFn: () => apiClient.get<{ courses: SkillCourse[]; credits: number }>("worker/skills"),
+   414→  });
+   415→}
+   416→
+   417→/* ------------------------- training hub --------------------------- */
+   418→
+   419→export function useWorkerTraining() {
+   420→  return useQuery({ queryKey: ["worker-training"], queryFn: () => apiClient.get<WorkerTrainingData>("worker/training") });
+   421→}
+   422→
+   423→export function useEnrollCourse() {
+   424→  const qc = useQueryClient();
+   425→  return useMutation({
+   426→    mutationFn: (courseId: string) => apiClient.post<{ enrollment: TrainingEnrollment }>(`worker/training/${courseId}/enroll`),
+   427→    onSuccess: () => {
+   428→      qc.invalidateQueries({ queryKey: ["worker-training"] });
+   429→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   430→      toast.success("Enrolled", { description: "The course is in My learning — the cooperative covers the fee." });
+   431→    },
+   432→    onError: (err: Error) => toast.error("Could not enrol", { description: err.message }),
+   433→  });
+   434→}
+   435→
+   436→export function useCourseProgress() {
+   437→  const qc = useQueryClient();
+   438→  return useMutation({
+   439→    mutationFn: (courseId: string) =>
+   440→      apiClient.post<{ enrollment: TrainingEnrollment; modulesDone: number; moduleCount: number }>(`worker/training/${courseId}/progress`),
+   441→    onSuccess: (data) => {
+   442→      qc.invalidateQueries({ queryKey: ["worker-training"] });
+   443→      toast.success(`Module ${data.modulesDone} of ${data.moduleCount} complete`, {
+   444→        description:
+   445→          data.enrollment.progressPct >= 100
+   446→            ? "All modules done — complete the course to earn your certificate."
+   447→            : `${data.enrollment.progressPct}% through the course.`,
+   448→      });
+   449→    },
+   450→    onError: (err: Error) => toast.error("Progress not saved", { description: err.message }),
+   451→  });
+   452→}
+   453→
+   454→export function useCompleteCourse() {
+   455→  const qc = useQueryClient();
+   456→  return useMutation({
+   457→    mutationFn: (courseId: string) => apiClient.post<{ enrollment: TrainingEnrollment }>(`worker/training/${courseId}/complete`),
+   458→    onSuccess: (data) => {
+   459→      qc.invalidateQueries({ queryKey: ["worker-training"] });
+   460→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   461→      toast.success(`Certificate ${data.enrollment.certificateId} issued`, {
+   462→        description: `Score ${data.enrollment.score ?? "—"}/100 — the credential is on your profile for customers to see.`,
+   463→      });
+   464→    },
+   465→    onError: (err: Error) => toast.error("Cannot complete yet", { description: err.message }),
+   466→  });
+   467→}
+   468→
+   469→/* ---------------------------- governance --------------------------- */
+   470→
+   471→export function useGovernance() {
+   472→  return useQuery({ queryKey: ["governance"], queryFn: () => apiClient.get<GovernanceData>("governance") });
+   473→}
+   474→
+   475→export function useVote() {
+   476→  const qc = useQueryClient();
+   477→  return useMutation({
+   478→    mutationFn: ({ proposalId, vote }: { proposalId: string; vote: "approve" | "reject" | "abstain" }) =>
+   479→      apiClient.post<{ proposal: GovernanceData["activeProposals"][number] }>("governance/vote", { proposalId, vote }),
+   480→    onSuccess: () => {
+   481→      qc.invalidateQueries({ queryKey: ["governance"] });
+   482→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   483→      toast.success("Vote recorded", { description: "One member, one vote — thank you for participating." });
+   484→    },
+   485→    onError: (err: Error) => toast.error("Vote not recorded", { description: err.message }),
+   486→  });
+   487→}
+   488→
+   489→/* ------------------------------ support ---------------------------- */
+   490→
+   491→export function useSupportTickets() {
+   492→  const role = useRole();
+   493→  return useQuery({ queryKey: ["support-tickets", role], queryFn: () => apiClient.get<{ tickets: SupportTicket[] }>("support/tickets", { user: DEMO_USER_ID[role] }) });
+   494→}
+   495→
+   496→export function useCreateTicket() {
+   497→  const qc = useQueryClient();
+   498→  return useMutation({
+   499→    mutationFn: (input: { raisedByRole: "customer" | "worker"; type: string; category: string; subject: string; description: string; relatedBookingRef?: string }) =>
+   500→      apiClient.post<{ ticket: SupportTicket }>("support/tickets", input),
+   501→    onSuccess: (data) => {
+   502→      qc.invalidateQueries({ queryKey: ["support-tickets"] });
+   503→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   504→      toast.success("Request submitted", { description: `Reference ${data.ticket.reference}. Our team responds within 4 working hours.` });
+   505→    },
+   506→  });
+   507→}
+   508→
+   509→/* ------------------------------ admin ------------------------------ */
+   510→
+   511→export function useAdminOverview() {
+   512→  return useQuery({ queryKey: ["admin-overview"], queryFn: () => apiClient.get<AdminOverview>("admin/overview") });
+   513→}
+   514→
+   515→export function useForecast() {
+   516→  return useQuery({ queryKey: ["admin-forecast"], queryFn: () => apiClient.get<ForecastData>("admin/forecast") });
+   517→}
+   518→
+   519→export function useAdminTraining() {
+   520→  return useQuery({ queryKey: ["admin-training"], queryFn: () => apiClient.get<AdminTrainingData>("admin/training") });
+   521→}
+   522→
+   523→export function useAdminWorkers(status?: string) {
+   524→  return useQuery({
+   525→    queryKey: ["admin-workers", status],
+   526→    queryFn: () => apiClient.get<{ items: (Worker & { weekJobs: number; weekEarnings: number })[] }>(`admin/workers?status=${status ?? "all"}`),
+   527→  });
+   528→}
+   529→
+   530→export function useVerifications() {
+   531→  return useQuery({
+   532→    queryKey: ["admin-verifications"],
+   533→    queryFn: () => apiClient.get<{ queue: { worker: Worker; daysInQueue: number }[]; verifiedCount: number }>("admin/verifications"),
+   534→  });
+   535→}
+   536→
+   537→export function useVerificationDecision() {
+   538→  const qc = useQueryClient();
+   539→  return useMutation({
+   540→    mutationFn: ({ workerId, decision, note }: { workerId: string; decision: "approved" | "rejected" | "needs_action"; note?: string }) =>
+   541→      apiClient.post<{ worker: Worker }>(`admin/verifications/${workerId}/decision`, { decision, note }),
+   542→    onSuccess: (_d, vars) => {
+   543→      qc.invalidateQueries({ queryKey: ["admin-verifications"] });
+   544→      qc.invalidateQueries({ queryKey: ["admin-overview"] });
+   545→      qc.invalidateQueries({ queryKey: ["admin-workers"] });
+   546→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   547→      toast.success(`Verification ${vars.decision.replace("_", " ")}`, { description: "The applicant has been notified." });
+   548→    },
+   549→  });
+   550→}
+   551→
+   552→export function useAdminBookings(status?: string) {
+   553→  return useQuery({
+   554→    queryKey: ["admin-bookings", status],
+   555→    queryFn: () =>
+   556→      apiClient.get<{ items: { booking: Booking; customerName: string; workerName: string }[] }>(`admin/bookings?status=${status ?? "all"}`),
+   557→  });
+   558→}
+   559→
+   560→export function useDisputes() {
+   561→  return useQuery({ queryKey: ["admin-disputes"], queryFn: () => apiClient.get<{ items: SupportTicket[] }>("admin/disputes") });
+   562→}
+   563→
+   564→export function useResolveDispute() {
+   565→  const qc = useQueryClient();
+   566→  return useMutation({
+   567→    mutationFn: ({ ticketId, resolution }: { ticketId: string; resolution: string }) =>
+   568→      apiClient.post<{ ticket: SupportTicket }>(`admin/disputes/${ticketId}/resolve`, { resolution }),
+   569→    onSuccess: () => {
+   570→      qc.invalidateQueries({ queryKey: ["admin-disputes"] });
+   571→      qc.invalidateQueries({ queryKey: ["admin-overview"] });
+   572→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   573→      toast.success("Case resolved", { description: "Both parties have been notified with the resolution note." });
+   574→    },
+   575→  });
+   576→}
+   577→
+   578→export function useFinance() {
+   579→  return useQuery({ queryKey: ["admin-finance"], queryFn: () => apiClient.get<FinanceOverview>("admin/finance") });
+   580→}
+   581→
+   582→export interface AdminGovernance extends GovernanceData {
+   583→  participationSeries: { label: string; value: number }[];
+   584→}
+   585→
+   586→export function useAdminGovernance() {
+   587→  return useQuery({ queryKey: ["admin-governance"], queryFn: () => apiClient.get<AdminGovernance>("admin/governance") });
+   588→}
+   589→
+   590→export function useCreateProposal() {
+   591→  const qc = useQueryClient();
+   592→  return useMutation({
+   593→    mutationFn: (input: { title: string; summary: string; description: string; category?: string }) =>
+   594→      apiClient.post<{ proposal: GovernanceData["activeProposals"][number] }>("admin/governance/proposals", input),
+   595→    onSuccess: () => {
+   596→      qc.invalidateQueries({ queryKey: ["admin-governance"] });
+   597→      qc.invalidateQueries({ queryKey: ["governance"] });
+   598→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   599→      toast.success("Proposal published", { description: "All 216 members have been notified to vote." });
+   600→    },
+   601→  });
+   602→}
+   603→
+   604→export function useAdminCategories() {
+   605→  return useQuery({
+   606→    queryKey: ["admin-categories"],
+   607→    queryFn: () => apiClient.get<{ categories: (ServiceCategory & { activeWorkers: number; bookings30d: number; avgRating: number })[] }>("admin/categories"),
+   608→  });
+   609→}
+   610→
+   611→export function useUpdateServiceRate() {
+   612→  const qc = useQueryClient();
+   613→  return useMutation({
+   614→    mutationFn: ({ categoryId, serviceId, basePrice }: { categoryId: string; serviceId: string; basePrice: number }) =>
+   615→      apiClient.put<{ service: ServiceCategory["services"][number] }>(`admin/categories/${categoryId}/services/${serviceId}`, { basePrice }),
+   616→    onSuccess: () => {
+   617→      qc.invalidateQueries({ queryKey: ["admin-categories"] });
+   618→      qc.invalidateQueries({ queryKey: ["categories"] });
+   619→      toast.success("Rate updated", { description: "New bookings will use the updated rate." });
+   620→    },
+   621→  });
+   622→}
+   623→
+   624→export function useAuditLog() {
+   625→  return useQuery({ queryKey: ["admin-audit"], queryFn: () => apiClient.get<{ items: import("@/lib/types").AuditEntry[] }>("admin/audit") });
+   626→}
+   627→
+   628→export function usePolicies() {
+   629→  return useQuery({ queryKey: ["admin-policies"], queryFn: () => apiClient.get<PlatformPolicy>("admin/policies") });
+   630→}
+   631→
+   632→export function useUpdatePolicy() {
+   633→  const qc = useQueryClient();
+   634→  return useMutation({
+   635→    mutationFn: (patch: Partial<PlatformPolicy>) => apiClient.put<{ policy: PlatformPolicy }>("admin/policies", patch),
+   636→    onSuccess: () => {
+   637→      qc.invalidateQueries({ queryKey: ["admin-policies"] });
+   638→      toast.success("Policy updated", { description: "Members have been notified of the change." });
+   639→    },
+   640→  });
+   641→}
+   642→
+   643→/* --------------------------- invoices (7-a) --------------------------- */
+   644→
+   645→export function useInvoice(bookingId: string | undefined) {
+   646→  return useQuery({
+   647→    queryKey: ["invoice", bookingId],
+   648→    queryFn: () => apiClient.get<InvoiceData>(`invoices/${bookingId}`),
+   649→    enabled: Boolean(bookingId),
+   650→    retry: false,
+   651→  });
+   652→}
+   653→
+   654→/* ----------------------- surplus & dividends (7-c) ----------------------- */
+   655→
+   656→export function useAdminSurplus() {
+   657→  return useQuery({ queryKey: ["admin-surplus"], queryFn: () => apiClient.get<AdminSurplusView>("admin/surplus") });
+   658→}
+   659→
+   660→export function useUpdateSurplusAllocation() {
+   661→  const qc = useQueryClient();
+   662→  return useMutation({
+   663→    mutationFn: (allocations: Partial<Record<SurplusAllocationKey, number>>) =>
+   664→      apiClient.post<AdminSurplusView>("admin/surplus", { allocations }),
+   665→    onSuccess: () => {
+   666→      qc.invalidateQueries({ queryKey: ["admin-surplus"] });
+   667→      toast.success("Draft allocation saved", { description: "The dividend preview below reflects the new split." });
+   668→    },
+   669→  });
+   670→}
+   671→
+   672→export function useSubmitSurplusProposal() {
+   673→  const qc = useQueryClient();
+   674→  return useMutation({
+   675→    mutationFn: () => apiClient.post<{ proposal: GovernanceProposal; surplus: AdminSurplusView }>("admin/surplus/propose"),
+   676→    onSuccess: ({ proposal }) => {
+   677→      qc.invalidateQueries({ queryKey: ["admin-surplus"] });
+   678→      qc.invalidateQueries({ queryKey: ["admin-governance"] });
+   679→      qc.invalidateQueries({ queryKey: ["governance"] });
+   680→      qc.invalidateQueries({ queryKey: ["notifications"] });
+   681→      toast.success(`${proposal.code} sent to member vote`, {
+   682→        description: `Dividend pool ₹${proposal.fiscalNote?.match(/₹[\d,]+/)?.[1] ?? ""} — all 216 members can now vote for 14 days.`,
+   683→      });
+   684→    },
+   685→  });
+   686→}
+   687→

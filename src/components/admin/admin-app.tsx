@@ -9,6 +9,7 @@ import { AdminVerificationsScreen } from "./verifications";
 import { AdminBookingsScreen } from "./bookings";
 import { AdminDisputesScreen } from "./disputes";
 import { AdminFinanceScreen } from "./finance";
+import { AdminSurplusScreen } from "./surplus-screen";
 import { AdminGovernanceScreen } from "./governance";
 import { AdminCategoriesScreen } from "./categories";
 import { AdminPoliciesScreen } from "./policies";
@@ -34,6 +35,8 @@ export function AdminApp({ route }: { route: AppRoute }) {
       return <AdminDisputesScreen />;
     case "admin-finance":
       return <AdminFinanceScreen />;
+    case "admin-surplus":
+      return <AdminSurplusScreen />;
     case "admin-governance":
       return <AdminGovernanceScreen />;
     case "admin-categories":

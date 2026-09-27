@@ -6,6 +6,7 @@ import {
   CalendarPlus,
   ClipboardList,
   Clock,
+  Coins,
   GraduationCap,
   Landmark,
   LayoutDashboard,
@@ -126,6 +127,7 @@ export const ADMIN_NAV: NavGroup[] = [
     label: "Cooperative",
     items: [
       { label: "Finance", route: "admin-finance", icon: Landmark },
+      { label: "Surplus & dividends", route: "admin-surplus", icon: Coins },
       { label: "Governance", route: "admin-governance", icon: Vote },
       { label: "Service catalogue", route: "admin-categories", icon: Shapes },
       { label: "Policies", route: "admin-policies", icon: SlidersHorizontal },
@@ -170,7 +172,30 @@ export function pageMeta(routeName: string): { section: string; title: string } 
     const item = group.items.find((i) => i.route === routeName);
     if (item) return { section: group.label, title: item.label };
   }
+  /* Detail routes inherit their parent's section and get a specific title,
+   * so deep screens never fall back to a generic "Welcome" breadcrumb. */
+  const detail = DETAIL_ROUTE_META[routeName];
+  if (detail) {
+    for (const group of [...CUSTOMER_NAV, ...WORKER_NAV, ...ADMIN_NAV]) {
+      const item = group.items.find((i) => i.route === detail.parent);
+      if (item) return { section: group.label, title: detail.title };
+    }
+  }
   return { section: "", title: "" };
 }
+
+/** Detail routes → their parent nav item (sidebar context) + a specific
+ *  header title. Single source of truth — the sidebar imports PARENT_ROUTE
+ *  (derived) and the header breadcrumb uses the title. */
+export const DETAIL_ROUTE_META: Record<string, { parent: string; title: string }> = {
+  "customer-booking": { parent: "customer-bookings", title: "Booking detail" },
+  "customer-invoice": { parent: "customer-payments", title: "Tax invoice" },
+  "customer-worker": { parent: "customer-discover", title: "Member profile" },
+  "worker-job": { parent: "worker-jobs", title: "Job detail" },
+};
+
+export const PARENT_ROUTE: Record<string, string> = Object.fromEntries(
+  Object.entries(DETAIL_ROUTE_META).map(([route, meta]) => [route, meta.parent]),
+);
 
 export { BookOpenCheck };

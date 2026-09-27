@@ -547,6 +547,98 @@ export interface PlatformPolicy {
   updatedAt: string;
 }
 
+/* ------------------------------------------------------------------ */
+/* Tax invoice (customer-facing GST invoice for paid bookings)         */
+/* ------------------------------------------------------------------ */
+
+export interface InvoiceLineItem {
+  description: string;
+  detail?: string;
+  qty: number;
+  unit: string;
+  amount: number;
+}
+
+/** A complete GST-style tax invoice derived from a paid booking.
+ *  All figures come from the booking's own PriceBreakdown — the invoice
+ *  can never disagree with what the customer was charged. */
+export interface InvoiceData {
+  invoiceNo: string;
+  invoiceDate: string;
+  fiscalYear: string;
+  bookingId: string;
+  bookingRef: string;
+  /** SAC code for household repair/maintenance services (simulated). */
+  sacCode: string;
+  /** Simulated cooperative GSTIN (27 = Maharashtra state code). */
+  gstin: string;
+  coop: { name: string; address: string[]; registration: string; email: string };
+  billTo: { name: string; customerId: string; address: string[] };
+  serviceBy: { name: string; memberNo: string; trade: string };
+  items: InvoiceLineItem[];
+  totals: PriceBreakdown;
+  payment: { method: string; reference: string; status: string; paidAt: string };
+  amountInWords: string;
+  notes: string[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Surplus & dividend distribution (cooperative annual allocation)     */
+/* ------------------------------------------------------------------ */
+
+export type SurplusAllocationKey = "reserves" | "dividend" | "training" | "community" | "contingency";
+
+export interface SurplusAllocationLine {
+  key: SurplusAllocationKey;
+  label: string;
+  description: string;
+  pct: number;
+  tone: "primary" | "success" | "warning" | "info" | "neutral";
+  /** Floor — a line cannot be edited below this (policy guardrail). */
+  minPct: number;
+}
+
+export interface SurplusMemberPreview {
+  workerId: string;
+  name: string;
+  trade: string;
+  /** Completed service value this FY — the patronage basis for dividends. */
+  patronage: number;
+  sharePct: number;
+  dividend: number;
+}
+
+export interface SurplusData {
+  fiscalYear: string;
+  /** Platform processing fees earned FY-to-date (from settled transactions). */
+  platformFeesYtd: number;
+  /** Simulated operating costs (62% of fees: centre, staff, tool bank, training stipends). */
+  operatingCostsYtd: number;
+  surplusYtd: number;
+  /** Sum of every member's patronage (completed service value). */
+  patronageTotal: number;
+  /** Members with patronage > 0 (dividend-sharing members). */
+  sharingMembers: number;
+  allocations: SurplusAllocationLine[];
+  status: "draft" | "in_vote";
+  proposal?: { id: string; code: string; closesAt: string };
+  lastDistributed: {
+    fiscalYear: string;
+    surplus: number;
+    patronageBonus: number;
+    members: number;
+    distributedAt: string;
+  };
+}
+
+export interface AdminSurplusView extends SurplusData {
+  /** Dividend pool at the current allocation, for headline display. */
+  dividendPool: number;
+  avgDividend: number;
+  /** Top members by patronage — the dividend preview table. */
+  memberPreview: SurplusMemberPreview[];
+}
+
 export interface OpenJobRequest {
   id: string;
   title: string;

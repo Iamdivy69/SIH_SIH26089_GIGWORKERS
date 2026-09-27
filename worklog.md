@@ -263,3 +263,116 @@ Stage Summary:
 - Screenshots for the SIH deck: /tmp/shots6/final-*.png (worker training light+dark, customer home dark, admin overview dark, admin training dark) + /tmp/shots6/dark-*.png (14 more) + training-*.png from 6-b.
 - Known acceptable limitations: recharts benign width(0) warnings on hidden-tab mount; notification "polling" is 20s refetch (no websockets); language selector display-only; monthly recurrence = +30 days; training scores simulated; banking/GST/TDS flows simulated.
 - Suggested next round: websocket mini-service for two-browser live demo (chat/notifications across devices), Prisma behind the same API contract, print-friendly invoice PDF, avatars' dark tone-map consolidation into lib/format.ts (noted by 6-a), optional per-worker training stat on worker dashboard.
+
+---
+Task ID: 7 (foundation, main)
+Agent: main (Z.ai Code) — Round-7 QA assessment + foundation for invoice / command-palette / surplus features
+
+Task: QA the current state via agent-browser, then build the server+hooks foundation for three new features so parallel UI agents (7-a/7-b/7-c) can work on disjoint files.
+
+Work Log:
+- QA sweep (agent-browser named session qa7): all 37 routes render, 0 console errors, 0 non-benign warnings; 375px no overflow (admin-finance, worker-training); E2E matching smoke correct (POST /matching svc-e6 → Priya 92%, 5 factors, estimate 800/24/48/9/881 + worker 824/792). Dev server healthy (~40ms page). NOTE: POST /matching requires categoryId in body and returns {recommendations:[{worker,score,factors,estimatedPrice,reasonSummary}], estimate} — my first curl attempts used wrong keys, not app bugs.
+- Round-7 feature selection (QA was all green): (7-a) customer GST tax invoice + print + CSV; (7-b) global command palette Ctrl+K; (7-c) admin surplus & dividend allocation → board proposal → member vote. Plus (7-d) integration styling pass.
+- Foundation implemented BY MAIN (so UI agents never touch shared server files):
+  - types.ts: InvoiceLineItem, InvoiceData, SurplusAllocationKey/Line/MemberPreview, SurplusData, AdminSurplusView. (Careless-edit incident: OpenJobRequest interface was briefly deleted and restored — verified intact.)
+  - format.ts: amountInWords() Indian numbering (crore/lakh/thousand/hundred).
+  - db.ts: Store.surplus (seedSurplus: FY 2026-27, fees = Σ txn platformFee = 3,068, costs = 62%, surplus 1,166, patronage Σ gross, 12 sharing members; seed allocation 35/40/15/7/3 with floors 20/10/5/0/0); surplusView() (dividendPool, avg, memberPreview sorted by patronage — top: Priya 20,912 → ₹185, Meena 14,925 → ₹132); updateSurplusAllocation (floor+sum=100 validation, blocked while in_vote); submitSurplusProposal (PRO-2026-0NN continuing numbering, unshift into governance.activeProposals, notify all verified workers, audit, surplus.status=in_vote); invoiceFor(bookingId) (GST-style invoice derived from booking.price — 4 line items summing to customerTotal, INV/<fy>/<ref> numbering, FY computed from settlement date, GSTIN 27AAECS1234F1Z5, SAC 998721, payment from txn, amountInWords, 4 notes incl. welfare+TDS transparency). SEED_VERSION 14→15.
+  - api.ts: GET /invoices/:bookingId (customer-ownership guard, 400 until payment processed); GET /admin/surplus; POST /admin/surplus {allocations}; POST /admin/surplus/propose.
+  - use-api.ts: useInvoice (retry:false), useAdminSurplus, useUpdateSurplusAllocation, useSubmitSurplusProposal (toast + invalidations incl. governance/notifications).
+  - app-store ROUTE_PARAMS: customer-invoice[bookingId], admin-surplus[]. nav.ts: ADMIN_NAV "Surplus & dividends" (Coins icon) in Cooperative group. sidebar PARENT_ROUTE: customer-invoice→customer-payments.
+  - globals.css: @media print block — .print-sheet visibility technique + @page 12mm + .no-print.
+  - Stubs (compile-green until agents replace): customer/screens/invoice-screen.tsx, admin/surplus-screen.tsx; wired cases in customer-app.tsx + admin-app.tsx.
+- curl verification: surplus GET ✓ (figures above); POST allocations dividend45/community2 → pool ₹525 ✓; below-floor → clear error ✓; sum≠100 → error ✓; propose → PRO-2026-016 ✓ in worker governance + notification "Surplus allocation vote open" ✓; double-propose blocked ✓; w-priya vote approve → votes {1,0,0} ✓. Invoice GET for Ananya bk-806 ✓ (INV/2026-27/80610, items sum 2,201, words correct); other-customer invoice → ownership error ✓; unpaid → "invoice becomes available once payment is processed" ✓.
+- bun run lint exit 0 after all changes.
+
+Stage Summary:
+- Store is MUTATED from foundation curl tests (allocation 35/45/15/2/3, PRO-2026-016 in_vote, Priya voted) — a dev-server restart reseeds pristine (SEED_VERSION 15 already burned in); final round-7 verification must restart or accept state.
+- Next: parallel subagents 7-a (invoice UI: replaces invoice-screen.tsx stub + adds View-invoice actions in booking-detail.tsx + payments-screen.tsx), 7-b (command palette: NEW platform/command-palette.tsx + header.tsx integration), 7-c (surplus UI: replaces surplus-screen.tsx stub). Then 7-d integration: styling-detail pass, full QA, docs, reseed.
+- File ownership is disjoint: 7-a owns customer/screens/* touches (invoice-screen, booking-detail, payments-screen); 7-b owns platform/command-palette.tsx + header.tsx; 7-c owns admin/surplus-screen.tsx. NO agent touches: server files, use-api.ts, app-store.ts, nav.ts, role app switches (all done by main).
+
+---
+Task ID: 7-c
+Agent: general-purpose (subagent) — admin surplus & dividends screen
+
+Task: Replace the admin/surplus-screen.tsx stub with the cooperative's annual surplus allocation builder (draft steppers + live preview → member-vote proposal → locked in-vote state) at #/admin-surplus.
+
+Work Log:
+- Read worklog (arch decisions + Task 7 foundation), docs/CONTRACT.md, and all pattern files (finance/governance screens, admin ui.tsx KpiStrip/FineNote, DataTable mobileCard contract, shared primitives, format.ts). Confirmed the server contract via curl before writing UI.
+- INCIDENT: dev server was DEAD on arrival (nothing on :3000). Restarted detached without the tee pipeline: `cd /home/z/my-project && nohup bunx next dev -p 3000 >> dev.log 2>&1 &` — stable since (~230ms API). Store reseeded to pristine draft state (exactly the state this task expects); never restarted again afterwards.
+- REWROTE `src/components/admin/surplus-screen.tsx` (~430 lines): PageHeader (eyebrow "Cooperative"); 6-cell KpiStrip (Surplus YTD w/ fees−costs sub, Dividend pool + Avg dividend — both LIVE from the draft split, Patronage base, Sharing members, Platform fees YTD) with `sm:grid-cols-3 xl:grid-cols-6` override so the grid fills at every breakpoint; "How this year's surplus is built" 3-row money derivation (fees − costs = surplus, tnum, aligned) + 62%-simulated FineNote reconciling with the Finance ledger; "Proposed allocation" builder — 5 lines with tone dot, label+description, stepper [−][%][+] (size-9 mobile / size-8 ≥sm, clamped minPct..100, − disabled at floor, "FLOOR n%" chip when at floor), live amount preview, live stacked bar (h-3 rounded-full, 5 tone-mapped segments, legend dot+label+pct+₹), sum chip ("100% · BALANCED" success / "92% · 8% UNALLOCATED" or "105% · 5% OVER-ALLOCATED" destructive), "Save draft" (all 5 keys, server errors via toast.error) + "Reset to board default" (35/40/15/7/3), "Send to member vote" in the card header (disabled when unbalanced or unsaved, title explains); in_vote state — warning AlertBanner "PRO-2026-0XX is with the members — voting closes <dateFull>" with "View proposal" → admin-governance, static muted % + ₹, no steppers, disabled Send + explanatory sub-text + "open new draft after the vote closes" note; "Member dividend preview" DataTable (avatar+name/trade, patronage tnum, share 1-decimal, dividend bold text-success-deep — all live-scaled by the draft dividend pct, top 10 of 12) + mobileCard stacked cards + FineNote; "Last year — FY 2025-26" compact card (₹18.40L / ₹9.20L success / 216, moneyCompact+money, distributed dateFull, patronage-proportionality note); bottom cooperative-framing strip with Coins icon.
+- `src/components/admin/governance.tsx`: NO changes needed — verified live that a 0-vote / 0-participation proposal renders cleanly (tally bar divides by Math.max(1, totalVotes); participation 0% shows the quorum-not-met warning tone; no NaN anywhere).
+- Verification (named agent-browser session t7c, 1440×900): (1) full screen renders — all 5 sections + framing strip, 0 console/page errors. (2) Draft flow: dividend +2 / community −2 → chip stays "100% · BALANCED", live pool ₹466→₹490, avg ₹41, Priya ₹194; reserves +5 → "105% · 5% OVER-ALLOCATED" (border-destructive/40 bg-destructive-muted text-destructive-deep) + Save AND Send disabled; re-balanced → Save → toast "Draft allocation saved" + server allocations confirmed via curl (41/6 test save, then reset+save back to seed 35/40/15/7/3). (3) Floor guard: 15 clicks on reserves − → stops at 20%, − disabled, "FLOOR 20%" chip; curl `{"reserves":10}` → "Welfare & stability reserve cannot go below 20% — policy guardrail"; curl sum 110 → "Allocation must total 100% — currently 110%". (4) "Send to member vote" → toast "PRO-2026-016 sent to member vote" → in_vote: banner + closes Sat, 10 Oct 2026, View proposal deep-links to #/admin-governance, steppers gone, values static muted, disabled Send + notes; curl edit while in_vote → server rejects with the spec'd message; #/admin-governance lists PRO-2026-016 (0 votes, clean render); #/worker-governance shows it under "OPEN FOR VOTING — 3 PROPOSALS"; curl vote as w-priya → votes {approve:1, reject:0, abstain:0}, audit log has draft-updated + proposal-published + vote-recorded entries, worker notification "Surplus allocation vote open" created. (5) Mobile 375×812: scrollWidth=375 (no overflow), desktop table hidden + mobileCard list renders, banner + stacked bar fine; viewport reset to 1440×900. (6) Dark mode: theme toggle → /tmp/shots7/surplus-dark.png (avg brightness 28.4; banner bg, success-deep dividend text and bar segments all token-adapted); back to light → surplus-light.png 243.7 / surplus-light-invote.png 242.0 (matches platform light palette). (7) `bun run lint` exit 0; `bunx tsc --noEmit` — zero errors in surplus-screen.tsx (pre-existing errors in other agents' files only). Screenshots: /tmp/shots7/surplus-{light,light-invote,dark,mobile-invote}.png.
+- Store left in_vote (PRO-2026-016, Priya approved) — per task instructions; main reseeds at round end (SEED_VERSION 15 already burned in; a dev-server restart or version bump restores the pristine draft).
+
+Stage Summary:
+- The surplus & dividends showcase screen is complete: allocation builder with live stacked preview + live dividend math (same formula as the server), policy floors, balanced-sum gating, board-default reset, member-vote submission with full governance integration and an honest locked in-vote state. Lint clean, zero console errors, mobile-clean at 375px, dark mode verified.
+- Deviations/judgement calls: (a) added a 6th KPI cell "Platform fees YTD" — 5 cells leave empty bg-border slots in KpiStrip's 2/4/8-column template at several breakpoints; 6 fills cleanly and the fees figure is the derivation's headline input. (b) PageHeader has no `icon` prop (the stub passed one — latent type error); Coins got a semantic home in the bottom cooperative-framing strip instead. (c) "Send to member vote" lives in the Proposed-allocation card header (draft) / footer (in_vote) so the two primary actions (Save vs Send) don't compete in one row. (d) dividend pool/avg/member-table figures update LIVE from the local draft (server math replicated exactly) — the FineNote "preview at the current dividend percentage" covers it.
+- For main (integration, not my files): (1) pre-existing nit in `useSubmitSurplusProposal` (use-api.ts): toast description uses `fiscalNote.match(/₹[\d,]+/)?.[1]` — no capture group, so it renders "Dividend pool ₹ — all 216 members…"; should be match[0] (would give ₹1,166 — fiscalNote starts with the surplus figure). (2) Dev server restarted by me at task start (it was dead); it now runs via `bunx next dev -p 3000 >> dev.log` detached — avoid the `bun run dev` tee pipeline for background starts. (3) governance.tsx untouched and confirmed safe with 0-vote proposals.
+
+---
+Task ID: 7-a
+Agent: general-purpose (subagent) — customer GST tax-invoice screen
+(Recorded by main: the subagent completed its code but its session hit the Task-tool context deadline before it could append this entry or return; facts below were verified by main after inspecting its files and re-running the verification.)
+
+Task: Build the production GST tax-invoice screen (route #/customer-invoice/:bookingId) on top of main's foundation, with print + CSV + entry-point wiring.
+
+Work Log:
+- REPLACED the stub `src/components/customer/screens/invoice-screen.tsx` with a 383-line production screen: toolbar (Back to booking / Download CSV / Print invoice, `.no-print`), document in ONE `.print-sheet` wrapper (max-w-3xl): letterhead + TAX INVOICE block, Billed-to / Service-member (co-operative) two-col cards, 4-cell meta strip (booking ref · SAC · GSTIN · payment w/ semantic status chip), line-items table (≥sm + print; stacked list on mobile), totals block with heavy-top-border total row, amount-in-words, transparency notes footer, loading skeleton mirroring the layout, CSV export (classic invoice rows + meta), print normalization (PRINT_* constants force white paper + black hairlines even from dark mode; beforeprint/afterprint color-scheme guard).
+- `booking-detail.tsx`: "View invoice" action (Receipt icon) on paid bookings → `customer-invoice`.
+- `payments-screen.tsx`: InvoiceDialog gains `onOpenInvoice` → navigates to the invoice route.
+- Verification (re-run by main, session qa7): renders with 0 console errors; print PDF = 1 page letter with ONLY the document (toolbar/sidebar/header absent — verified via PDF text extraction); CSV button + toast; entry points both navigate correctly; mobile 375 no overflow; dark mode correct (avg brightness 24.8 vs 247.1). Screenshots: /tmp/shots7/invoice-{light,dark-check,mobile-check}.png + invoice-print.pdf.
+
+Stage Summary:
+- Feature complete and verified. Deviation: none functional. Note: payment reference falls back to `pay-<ref>` when no settled transaction exists for the booking (escrow-held bookings) — deliberate fallback, displays fine.
+
+---
+Task ID: 7-b
+Agent: frontend-styling-expert (subagent) — global command palette (Ctrl/Cmd+K)
+(Recorded by main: the subagent completed its code but its session hit the Task-tool context deadline before it could append this entry or return; facts below were verified by main after inspecting its files and re-running the verification.)
+
+Task: Build the global command palette — quick switcher over the active role's screens plus entity search, keyboard-driven, mounted in the header.
+
+Work Log:
+- NEW `src/components/platform/command-palette.tsx` (442 lines): shadcn `CommandDialog`; trigger = icon button (always visible) + labeled variant with platform-aware kbd hint (⌘K / Ctrl K) on md+; Ctrl/Cmd+K global listener (skips when typing unless the combo itself); per-role data sources — screens from `NAV_BY_ROLE` (default grouped view when query empty), customer: members (avatar + trade/locality + rating) → `customer-worker/:id`, services/categories → `customer-book/:categoryId`, own bookings by SG-reference (status as secondary) → `customer-booking/:id`; worker: own bookings → `worker-job/:id` + training courses → `worker-training`; admin: screens. Substring pre-filter (prefix > word-start > contains ranks, `WORD_START` regex) feeding cmdk's fuzzy pass; per-group caps + "+N more" sibling rows (documented cmdk re-append workaround); role-scoped fetch on open; footer hint "↑↓ navigate · ↵ open · esc close"; uppercase micro-label group headings; SSR-safe (no window during render).
+- `platform/header.tsx`: imports + mounts `<CommandPalette />` after the breadcrumb block.
+- Verification (re-run by main, session qa7): Ctrl+K opens; "priya" → member row (PS avatar, trade, 4.8, ↵ hint) → Enter → `#/customer-worker/w-priya`; "SG-8" → booking-ref rows with status; worker role "training" → `#/worker-training`; admin "audit" → `#/admin-audit`; Esc closes; mobile 375: palette opens, scrollWidth 375; 0 console errors throughout; entity data fetch observed in dev.log (GET /api/workers, /api/categories, /api/bookings?customerId=c-ananya). Screenshots: /tmp/shots7/palette-{light,search}.png.
+
+Stage Summary:
+- Feature complete and verified. Deviation: none.
+
+---
+Task ID: 7-c
+Agent: general-purpose (subagent) — admin surplus & dividends screen
+(Entry written by the agent itself; summarised here — full log above.)
+
+Task: Production #/admin-surplus screen — cooperative annual surplus allocation builder → board proposal → member vote.
+
+Work Log / Stage Summary:
+- Full rewrite of the surplus stub (~430 lines): KpiStrip (6 cells with live dividend figures), surplus derivation panel + 62%-simulated FineNote, interactive allocation builder (steppers with policy floors, live stacked preview bar + legend, balanced/over-allocated sum chip, Save/Reset/Send-to-vote), locked in_vote state (AlertBanner + deep link to admin-governance), member dividend preview DataTable (top 10 by patronage, mobileCard), FY 2025-26 last-year card, cooperative framing strip.
+- All verification green: draft flow (live pool ₹466→₹490), floor guards (UI clamp + curl errors), propose → PRO-2026-016 in member governance + votable, mobile 375, dark mode, lint + tsc. Flagged the `useSubmitSurplusProposal` toast regex bug in main's use-api.ts (fixed by main: `match(/₹[\d,]+/)?.[0]`). Judgement calls: 6th KPI cell "Platform fees YTD"; PageHeader has no icon prop (moved Coins to framing strip); Send-to-vote placement differs draft vs in_vote.
+
+---
+Task ID: 7-d
+Agent: main (Z.ai Code) — integration, styling-detail pass, QA, docs, handover
+
+Task: Verify/finish the three parallel feature builds (7-a/7-b sessions timed out mid-round), then integration styling pass, full QA, docs, pristine reseed, worklog.
+
+Work Log:
+- INCIDENT: the two parallel Task launches for 7-a/7-b hit the Task tool's context deadline — but BOTH agents had already written their complete code (invoice screen 383 lines + wiring; palette 442 lines + header mount). Main audited the files (high quality, lint-clean) and re-ran their entire verification suites itself rather than relaunching.
+- DEV-SERVER STABILITY: the shared dev server died repeatedly this round. Root causes: (1) `bun run dev` pipes through `tee` (known SIGPIPE issue); (2) the sandbox reaps background processes started naively (`nohup bun run dev &` survived minutes then died; `setsid bunx next dev` directly in a call also died). WORKING PATTERN: `(setsid bunx next dev -p 3000 >> dev.log 2>&1 < /dev/null &)` inside a subshell — current instance 30+ min stable across many tool calls. If it dies again, use exactly that. (Cron watchdog was attempted but the cron tool is unavailable in this context.)
+- Fixed 7-c's flagged bug: useSubmitSurplusProposal toast `match(/₹[\d,]+/)?.[1]` → `?.[0]` (undefined → now shows the pool figure).
+- STYLING-DETAIL PASS (mandatory):
+  - **Header orientation on detail routes (real defect found by main)**: pageMeta() previously missed non-nav routes → header showed "Welcome" on customer-booking/worker-job/customer-worker/customer-invoice. Added `DETAIL_ROUTE_META` + derived `PARENT_ROUTE` export in `platform/nav.ts` (single source of truth; sidebar.tsx now imports it instead of its local copy) → pageMeta resolves "Tax invoice"/"Booking detail"/"Member profile"/"Job detail" with the parent's section label. Verified live on all four routes.
+  - **Live document titles**: Providers sets document.title per route ("Surplus & dividends · Sahyog", "Tax invoice · Sahyog" — verified) instead of a static brand title.
+  - **Keyboard focus visibility**: focus-visible rings added to all custom interactive elements (sidebar nav items + brand button, mobile bottom-nav tabs, header notification sheet rows) — shadcn buttons already had them.
+  - **prefers-reduced-motion**: globals.css honours the OS preference (instant transitions).
+  - VLM design review was attempted for the new screens but z-ai vision/SDK returned 401 (no X-Token in this environment) — the styling pass proceeded via main's code audit instead.
+- FULL QA: 38-route sweep (all 37 prior routes + customer-invoice + admin-surplus) → 0 console errors everywhere; palette interactions across 3 roles (Ctrl+K, search "priya"/"training"/"audit"/"SG-8", Enter navigation, Esc close); invoice entry points (booking detail "View invoice", payments dialog action); print PDF verified (1 page, only the document reaches paper — text-extraction verified); mobile 375px no overflow (invoice + palette + surplus); dark mode on invoice (brightness 24.8 vs 247.1 light) + surplus (7-c's own dark verification); E2E surplus loop re-verified on fresh code (draft → propose PRO-2026-016 → in_vote banner → w-priya vote approve); matching smoke (Priya 92%, estimate 800/24/48/9/881); bun run lint exit 0 (run 4× this round, always clean).
+- DOCS: README (invoice/palette/surplus in What's inside + demo-scenario step 10 + cooperative-model bullets) and docs/CONTRACT.md (round-7 section: invoice, palette, surplus, header orientation contracts).
+- FINAL STATE: dev server restarted → pristine SEED_VERSION 15 seed (surplus draft 35/40/15/7/3 pool ₹466; governance back to PRO-2026-014/015 only; notifications clean). Post-restart sanity: invoice renders, surplus draft renders, palette opens, 0 console errors.
+
+Stage Summary:
+- Platform now ships 39 hash routes: full GST tax invoicing (print + CSV), a global command palette, and the cooperative surplus/dividend allocation → member-vote loop — plus orientation/a11y styling details (correct breadcrumbs + live titles on detail routes, focus rings, reduced motion).
+- All green: 38-route sweep 0 errors, lint clean, mobile + dark verified, E2E surplus loop verified, store pristine at SEED_VERSION 15, dev server stable via the subshell-setsid pattern.
+- Known limitations (unchanged or new): recharts benign width(0) warnings; notification polling 20s (no websockets); language selector display-only; monthly recurrence +30d; training scores simulated; invoice GSTIN/SAC/registration identifiers simulated; surplus operating costs simulated at 62% (shown on-screen); dividend preview is patronage-proportional and gated behind a member vote (nothing auto-distributes).
+- Suggested next round: (1) worker-side dividend visibility — a "your patronage dividend preview" card on worker earnings/welfare reading the live surplus proposal; (2) real i18n for the language selector; (3) websocket mini-service for cross-device notification push; (4) invoice PDF server-side rendering (currently print-to-PDF); (5) consider merging worker-skills into the training hub.

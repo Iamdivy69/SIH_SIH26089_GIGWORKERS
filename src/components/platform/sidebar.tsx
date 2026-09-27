@@ -1,6 +1,6 @@
 "use client";
 
-import { NAV_BY_ROLE } from "./nav";
+import { NAV_BY_ROLE, PARENT_ROUTE } from "./nav";
 import { useAppStore } from "@/store/app-store";
 import { useNotifications } from "@/hooks/use-api";
 import { cn } from "@/lib/utils";
@@ -13,13 +13,6 @@ const BADGE_HINTS: Record<string, string> = {
   verifications: "{n} worker application(s) awaiting review",
   disputes: "{n} open dispute / support case(s)",
   unvoted: "{n} governance proposal(s) awaiting your vote",
-};
-
-/** Detail routes → their parent nav section, so deep screens keep sidebar context. */
-const PARENT_ROUTE: Record<string, string> = {
-  "customer-booking": "customer-bookings",
-  "customer-worker": "customer-discover",
-  "worker-job": "worker-jobs",
 };
 
 export function Sidebar({
@@ -43,7 +36,7 @@ export function Sidebar({
   return (
     <div className={cn("flex h-full flex-col bg-sidebar", className)}>
       <div className="flex h-14 items-center border-b border-sidebar-border px-5">
-        <button onClick={() => navigate(role === "customer" ? "customer-home" : role === "worker" ? "worker-dashboard" : "admin-overview")} className="text-left">
+        <button onClick={() => navigate(role === "customer" ? "customer-home" : role === "worker" ? "worker-dashboard" : "admin-overview")} className="rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar">
           <BrandWordmark />
         </button>
       </div>
@@ -65,7 +58,7 @@ export function Sidebar({
                       aria-current={active ? "page" : undefined}
                       title={badge > 0 && item.badgeKey ? BADGE_HINTS[item.badgeKey]?.replace("{n}", String(badge)) : undefined}
                       className={cn(
-                        "group flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13.5px] transition-colors",
+                        "group flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13.5px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar",
                         active
                           ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-[inset_3px_0_0_0_var(--sidebar-primary)]"
                           : "font-medium text-sidebar-foreground/75 hover:bg-muted hover:text-foreground",

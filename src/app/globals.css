@@ -265,3 +265,59 @@
 .dark .recharts-tooltip-cursor {
   fill: oklch(1 0 0 / 0.06);
 }
+
+/* Reduced-motion users get instant state changes — the design's transitions
+   are subtle (colors, opacity) but should still respect the OS preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Print — only the .print-sheet (tax invoice) reaches the paper       */
+/* ------------------------------------------------------------------ */
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  html,
+  body {
+    background: white !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+  .print-sheet {
+    position: absolute !important;
+    inset: 0 auto auto 0;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+  }
+  /* Chrome prints hidden elements fine, but layout containers can still
+     clip — neutralise transforms/overflow on the sheet's ancestors. */
+  .print-sheet * {
+    overflow: visible !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

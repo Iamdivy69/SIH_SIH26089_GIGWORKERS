@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { parseHash, useAppStore } from "@/store/app-store";
+import { pageMeta } from "./nav";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -33,6 +34,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
   }, []);
+
+  /* Live document title — every screen keeps the tab and history entries
+     readable (e.g. "Tax invoice · Sahyog"); falls back to the brand title. */
+  const routeName = useAppStore((s) => s.route.name);
+  useEffect(() => {
+    const meta = pageMeta(routeName);
+    document.title = meta.title ? `${meta.title} · Sahyog` : "Sahyog — Cooperative Services Platform (SIH26089)";
+  }, [routeName]);
 
   return (
     /* Theme is an explicit user choice — light-first corporate identity.

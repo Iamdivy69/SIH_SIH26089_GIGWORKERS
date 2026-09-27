@@ -190,3 +190,13 @@
    190→   190→- Known acceptable limitations unchanged: recharts benign width warnings, 20s notification polling, language selector display-only, monthly recurrence = +30 days.
    191→   191→- Suggested next round: dark-mode pass, websocket mini-service for two-browser demo, admin finance CSV, Prisma behind the same API contract, SIH deck screenshots from /tmp/shots/.
    192→   192→
+   193→   193→
+   194→   194→---
+   195→   195→Task ID: 6-b
+   196→   196→Agent: general-purpose (training hub)
+   197→   197→Task: Worker Training & Upskilling Hub — cooperative-funded courses, module progress, SCT certificates, customer-facing credentials, admin coverage dashboard.
+   198→   198→
+   199→   199→Work Log:
+   200→   200→- Read worklog/CONTRACT + all pattern files (api route(), db store/mutations, seed relative-dates, hooks, nav, one worker + one admin screen). Followed the concurrent dark-mode agent's file-ownership rules; all my new UI uses semantic tokens only (verified in dark mode too).
+
+[showing lines 1-200 of 292; use offset=201 with limit to continue reading]

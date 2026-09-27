@@ -1,0 +1,164 @@
+     1→# Sahyog — Frontend Build Contract (for all build agents)
+     2→
+     3→Read this fully before writing any code. Also read `/home/z/my-project/worklog.md` for what previous agents did.
+     4→
+     5→## 1. What this app is
+     6→
+     7→**Sahyog** — a cooperative gig services platform for household & community services (SIH26089). Three role experiences in one SPA: **Customer** (Ananya Deshpande), **Worker/member-owner** (Priya Sharma, electrician), **Cooperative admin** (Kiran Rao). It must feel like a mature enterprise product — think fintech operations software, not a startup landing page.
+     8→
+     9→The product's differentiators that MUST be visible in every relevant screen:
+    10→- **Explainable matching** — never "AI recommended"; always show score factors + reasons.
+    11→- **Transparent finance** — every price/earning is a full breakdown; use the shared pricing components.
+    12→- **Worker welfare** — benefits portal quality, contributions traceable to bookings.
+    13→- **Cooperative governance** — real proposal voting, one member one vote.
+    14→- **Demo data everywhere** — no empty states on primary screens (empty states only for filtered lists etc.).
+    15→
+    16→## 2. Hard rules
+    17→
+    18→1. **You own ONLY your role folder**: `src/components/customer/**` (Task 2-a), `src/components/worker/**` (Task 2-b), `src/components/admin/**` (Task 2-c). You may CREATE files there freely. You may NOT modify ANY file outside your folder. If something is missing in shared code, build a local component inside your folder instead.
+    19→2. **Do not add page routes.** The whole app lives in `src/app/page.tsx` via the hash router. Screens are components rendered by your `<RoleApp route={route} />` switch (file already exists with stubs — replace its content, keep the export name and signature).
+    20→3. **Route names are frozen** (see §5) — the sidebar/mobile nav reference them.
+    21→4. TypeScript strict. No `any` in new code. All data access through the hooks in `src/hooks/use-api.ts` — never `fetch` directly.
+    22→5. `bun run lint` must pass with zero errors/warnings in your files before you finish.
+    23→6. Design language (STRICT):
+    24→   - Light theme, warm paper background. **Primary = deep green.** NO blue/purple, NO gradients, NO glow, NO glassmorphism, NO giant icons, NO decorative shapes.
+    25→   - Cards: `rounded-lg border bg-card` (no shadows). Section padding `p-5`. Gaps `gap-4`/`gap-6`.
+    26→   - Typography: page title `text-2xl font-semibold tracking-tight`; section heading `text-[15px] font-semibold`; body `text-sm` (14px); secondary `text-[13px] text-muted-foreground`; metadata `text-xs`; table text `text-[13px]`; micro-labels via `.micro-label` class; ALL numbers/amounts get `.tnum` (or use `money()`).
+    27→   - Buttons: shadcn `Button` — `size="sm"` for table/inline actions, default size for primary CTAs. Ghost for tertiary.
+    28→   - Icons: lucide, 14–18px, `strokeWidth={1.9}`, used sparingly and semantically.
+    29→   - Color = meaning only: green=positive/done, amber=pending/attention, red=critical, slate=informational, primary=interactive.
+    30→   - Every interactive element: real hover/focus states, keyboard accessible, `aria-label` where icon-only.
+    31→   - Responsive: mobile-first valid at 375px; desktop 1280–1440 is the screenshot target. Tables use the `DataTable` component (with `mobileCard`/`MobileRows` where the table is the primary content). No horizontal page overflow.
+    32→   - Loading: `LoadingPanel`/`LoadingGrid`/Skeleton while queries load. Errors: `ErrorState`. Empty (filtered) lists: `EmptyState` with a next-step action.
+    33→   - Feedback: `toast` from `sonner` on every mutation (already wired in most hooks — don't double-toast; hooks already toast, so only add toasts for local UI actions).
+    34→7. **Never** claim real integrations. Verification/insurance/payouts are "simulated" — the header already shows a "Demo · simulated data" badge; you may add small "(simulated)" notes in fine print where relevant.
+    35→
+    36→## 3. How to navigate (router)
+    37→
+    38→```tsx
+    39→import { useAppStore } from "@/store/app-store";
+    40→const navigate = useAppStore((s) => s.navigate);
+    41→navigate("customer-worker", { workerId: "w-priya" });   // → hash #/customer-worker/w-priya
+    42→navigate("customer-bookings");
+    43→```
+    44→Your `<RoleApp route={route} />` receives `route: { name: string; params: Record<string,string> }`. Switch on `route.name`, read `route.params.bookingId` etc. Use `key={route.params.id}` on screen components when re-mounting matters.
+    45→
+    46→## 4. Available building blocks
+    47→
+    48→### Shared components (`@/components/shared`)
+    49→- `<PageHeader eyebrow title description actions onBack>` — page top. Use eyebrow for section context (e.g. "Electrical · Service request").
+    50→- `<SectionCard title description actions forTable>` — titled card; `forTable` removes body padding for tables.
+    51→- `<StatTile label value sub delta deltaTone accessory emphasis>` — KPI tile; `StatInline` for sidebar/quiet stats.
+    52→- `<StatusBadge status dotOnly>` — knows every domain status; `statusLabel(status)` for text.
+    53→- `<DataTable columns rows getRowKey onRowClick emptyTitle mobileCard dense>` + `<MobileRows rows getRowKey render>`; `Column<T> = { key, header, align?, cell, hideOnTablet?, hideOnDesktop? }`.
+    54→- Pricing (THE signature): `<CustomerPriceLines price>` (bill lines + total), `<PaymentAllocation price>` (where every rupee goes, stacked bar), `<WorkerPayoutCard price>` (worker-side gross→net), `<PriceTotal price>` (compact inline w/ tooltip).
+    55→- Matching: `<MatchBadge score>`, `<FactorBars factors compact>` (full score explanation), `<MatchReasonChips factors>` (✓ chips), `<ScoreDial score>`.
+    56→- `<StatusTimeline events>` — booking/event timeline.
+    57→- Charts: `<TrendAreaChart data currency>`, `<CompareBarChart data labelA labelB>`, `<ValueBarChart data currency>`, `<LineTrend data suffix max>`, `<Spark data>`, `<HBarList data currency max>`. `SeriesPoint = { label, value, secondary? }`.
+    58→- `<RatingStars value count>`, `<PersonAvatar name size>`, `<EvidenceTile phase label evidence onCapture disabled>` (simulated photo capture), `<AlertBanner severity title detail action onAction>`, `<EmptyState>`, `<ErrorState onRetry>`, `<LoadingPanel/LoadingGrid>`.
+    59→
+    60→### shadcn/ui (`@/components/ui/*`)
+    61→button, input, textarea, label, select, checkbox, switch, radio-group, tabs, dialog, alert-dialog, sheet, drawer, dropdown-menu, popover, tooltip, accordion, badge, separator, avatar, progress, skeleton, scroll-area, table, calendar, form (react-hook-form + zod available), command (cmdk), breadcrumb. Use them; don't rebuild.
+    62→
+    63→### Hooks (`@/hooks/use-api.ts`) — grouped per role; see file for exact signatures
+    64→- Shared: `useSession`, `useNotifications`, `useMarkNotificationsRead`, `useCategories`
+    65→- Customer: `useCustomerOverview`, `useWorkers(filters)`, `useWorkerProfile(id)`, `useToggleSaveWorker`, `useMatching` (mutation: input `{categoryId, serviceId, description, scheduledAt, charge}` → recommendations with `factors` + `estimate`), `useCreateBooking`, `useBookings({customerId})`, `useBooking(id)`, `useCancelBooking`, `useConfirmBooking`, `useRateBooking`
+    66→- Worker: `useWorkerOverview`, `useWorkerJobs` (offers/openRequests/scheduled/active/awaiting/history + worker), `useJobAction` ({id, action:"accept"|"decline"}), `useBookingStatus` ({id, status:"en_route"|"arrived"|"in_progress"}), `useChecklistToggle`, `useCaptureEvidence`, `useCompleteBooking` (validates checklist+evidence server-side; error toast on unmet requirements), `useWorkerEarnings`, `useWelfare`, `useSubmitClaim`, `useSchedule`, `useAvailability` + `useSaveAvailability`, `useVerification`, `useSkills`
+    67→- Governance: `useGovernance`, `useVote` ({proposalId, vote})
+    68→- Support: `useSupportTickets`, `useCreateTicket`
+    69→- Admin: `useAdminOverview`, `useForecast`, `useAdminWorkers(status?)`, `useVerifications`, `useVerificationDecision`, `useAdminBookings(status?)`, `useDisputes`, `useResolveDispute`, `useFinance`, `useAdminGovernance`, `useCreateProposal`, `useAdminCategories`, `useUpdateServiceRate`, `useAuditLog`, `usePolicies` + `useUpdatePolicy`
+    70→
+    71→### Formatting (`@/lib/format.ts`)
+    72→`money(n)` ₹ en-IN, `num(n)`, `moneyCompact(n)`, `dateTimeLabel(iso)` → "Today · 4:30 PM", `dateShort/dateFull/time/relativeTime/duration(mins)`, `initials`, `DAY_NAMES`, `TIME_SLOTS`, `pctLabel`, `ratingLabel`, `bookingReference(id)`.
+    73→
+    74→### Pricing (`@/lib/rates.ts`)
+    75→`computePrice(serviceCharge)` → full `PriceBreakdown` (use for live estimates in the booking flow before the server confirms). `DEFAULT_RATES` = commission 6%, welfare 3%, GST 18%, TDS 1%. `customerAllocation(price)`.
+    76→
+    77→### Domain types (`@/lib/types.ts`)
+    78→Read it. Every model is there. `Booking.price` is a full `PriceBreakdown`. Statuses are unions — use `StatusBadge`.
+    79→
+    80→### The demo scenario (must work end-to-end, single browser session)
+    81→Customer books "General electrical repair" (svc-e6, ₹800) at ~5:00 PM today → matching recommends Priya (~92%, all factors Excellent) → transparent pricing + simulated UPI payment → booking `pending_acceptance` + worker notified → switch to worker → offer appears → Accept → execution screen (status flow en_route → arrived → in_progress, checklist, before/after evidence) → Complete → customer confirms (+ optional rating) → payment settles, earnings transaction + welfare contribution appear → admin dashboards reflect. **Test this flow through your screens.**
+    82→
+    83→Booking lifecycle statuses: `pending_acceptance → confirmed → en_route → arrived → in_progress → awaiting_confirmation → completed` (also `cancelled`, `declined`). Payment: `authorized → settled` (or `refunded`).
+    84→
+    85→## 5. Routes to implement (frozen names)
+    86→
+    87→### Customer (Task 2-a) — `src/components/customer/`
+    88→- `customer-home` — **The customer's command centre.** Greeting + quick search bar (navigates to discover with q), category grid (6 tiles, icon + name + tagline), active booking card (status, worker, time, actions: View / Track), recent bookings list (status + price), "Recommended for you" worker strip (from `useCustomerOverview().recommendedWorkers`, cards with MatchBadge + reason), quick actions (New request, Support). Include one trust element: "Every member is cooperative-verified" microcopy strip with 3 proof points (verification, transparent pricing, welfare link).
+    89→- `customer-discover` (params: optional `category`) — Search + filters: category chips (from `useCategories`), search input, sort (Recommended/Rating/Distance), filters row: min rating, max distance, verified only, available today. Results: worker cards (avatar, name, trade, Verified badge, rating stars + count, completed jobs, distance, locality, "Available today" hint, price note, CTA View profile + Book). Show result count. Loading skeletons. Empty state.
+    90→- `customer-worker` (params: `workerId`) — Worker profile page = TRUST page. Header: avatar, name, trade title, Verified member badge, cooperative member ID + "member since", rating, completed services, response time, on-time rate, repeat customers. Sections: About (bio, skills chips, languages), Certifications & verification (list with StatusBadge each), Availability (weekly slots grid), Reviews (RatingStars + comment + tags + date; rating summary), Pricing (services list from category catalog). Right rail (desktop): "Book this member" card (choose service → booking flow with preselected worker), stats (experience years, jobs, distance), "Why you can trust" (verification summary + cooperative membership). If navigated from matching, show a "Why recommended" FactorBars panel on top.
+    91→- `customer-book` (params: optional `categoryId`) — **The multi-step booking flow — a flagship screen.** Full-page flow with a left context summary panel (sticky; service, worker, slot, price so far) and right step content; progress steps indicator: 1 Service → 2 Requirements → 3 Match → 4 Slot → 5 Review & pay → 6 Confirmation.
+    92→  - Step 1: category picker (if not preselected) → service list (name, description, duration, price, unit). Selected charge = service.basePrice.
+    93→  - Step 2: description textarea (validate ≥ 15 chars), address select (Ananya's two addresses: Home — Flat 402, Sunshree Residency, Paud Road, Kothrud 411038; Parents' home — Row House 12, Sai Colony, Karve Nagar 411052), optional notes.
+    94→  - Step 3: run `useMatching` → recommended workers with MatchBadge/ScoreDial, FactorBars (collapsible per worker), reason chips, estimated price; "View profile" link; select worker (radio-style card). Header explains: "How we match: skills 35% · location 20% · availability 20% · rating 15% · experience 10%".
+    95→  - Step 4: slot picker — next 7 days as date chips + time slots (Morning/Afternoon/Evening groups with times 8:00, 9:30, 11:00, 12:30, 14:00, 15:30, 17:00, 18:30).
+    96→  - Step 5: review — full `CustomerPriceLines` + `PaymentAllocation`, booking summary (worker, service, slot, address), payment method selector (UPI saved / GPay / Paytm / BHIM — simulated), "Pay ₹X securely" → `useCreateBooking` → confirmation. Microcopy: "Payment is held securely and settled to your member only after you confirm completion."
+    97→  - Step 6: confirmation — success check, booking reference, what happens next, CTAs: View booking / Back home.
+    98→  - Validate each step before continuing (disable Continue). Support back navigation.
+    99→- `customer-bookings` — Tabs: Active / Upcoming / History. List cards: service title, worker name + avatar, dateTimeLabel, status badge, PriceTotal, actions (View).
+   100→- `customer-booking` (params: `bookingId`) — Booking detail = operational view. Header: title, reference, status badge, worker card (avatar, name, trade, rating, contact buttons: Call/Message → toasts "simulated"). Status timeline. Live status message per status. Right rail: pricing (`CustomerPriceLines` + `PaymentAllocation`), service details. Actions by status: pending_acceptance/confirmed → Cancel (AlertDialog w/ reason); awaiting_confirmation → "Confirm completion" (`useConfirmBooking`; then optional inline rating: stars + tags + comment via `useRateBooking` if not rated); completed → rate or show review card; cancelled → refund note + Rebook.
+   101→- `customer-payments` — Invoice list: date, service, worker, total, payment status; summary stats (spent this month, completed services, avg booking). Row click → invoice dialog: header (Sahyog, invoice no INV-xxxx, date), `CustomerPriceLines`, allocation, GST note, "Download invoice" (toast: simulated).
+   102→- `customer-support` — List of my tickets (status badge, subject, ref, updated) + detail (message thread, resolution note); "New request" dialog: type (Complaint/Dispute/Question), category, subject, description, optional booking ref → `useCreateTicket`. FAQ accordion (welfare contribution, cancellation policy, verification, ratings).
+   103→- `customer-profile` — Profile card (name, locality, member since), addresses list (edit dialog — local state ok), payment methods (UPI simulated), preferences (notification switches — local), language note (EN active, मराठी/हिंदी roadmap).
+   104→
+   105→### Worker (Task 2-b) — `src/components/worker/`
+   106→- `worker-dashboard` — Answers: earned? jobs? next? why these jobs? benefits? cooperative status? Today strip (today's schedule w/ times + status or "No more jobs today" + next job), earnings snapshot (StatTiles: available balance, this week, pending + Spark of weekSeries), new job offers (top 2 with MatchBadge + quick Accept/Decline + collapsible FactorBars), cooperative strip (unvoted proposals alert w/ Vote CTA, welfare balance, active benefit), quality row (rating, completion rate, on-time). One TrendAreaChart of weekSeries only.
+   107→- `worker-jobs` — Tabs: Offers (bookings `pending_acceptance` labelled "Direct request" + `openRequests` labelled "Open pool"); Scheduled; Active; History. Offer card (FLAGSHIP): title, net earnings (estimate.workerNetPayout + "+₹X welfare credit"), distance, dateTimeLabel, duration, MatchBadge, MatchReasonChips, description, Accept (primary) / Decline (AlertDialog) actions.
+   108→- `worker-job` (params: `bookingId`) — **Service execution screen (FLAGSHIP).** Header: customer + address + ref + status badge; actions: Navigate / Call / Message (toasts, simulated). Status stepper: Accepted → On the way → Arrived → In progress → Completed; advance via `useBookingStatus`. Job requirements, checklist (`useChecklistToggle`, enabled from in_progress; progress "3/5"), evidence (EvidenceTile before/after, enabled from arrival/in_progress). Complete button (needs 100% checklist + both photos; server validates; error toast explains). Post-complete: settlement explanation (`WorkerPayoutCard` of booking price) + "settles after customer confirmation (auto after 24h)". awaiting_confirmation → waiting state w/ payout card. completed → settled summary.
+   109→- `worker-schedule` — Week view: 7 day columns (desktop) / day list (mobile); bookings with time, title, customer locality, status; today highlighted.
+   110→- `worker-availability` — Weekly slot editor: 7 days × 3 slots (Morning/Afternoon/Evening) switches; save via `useSaveAvailability`; note about PRO-2026-009 weekend incentive priority for open evening availability.
+   111→- `worker-earnings` — **Serious financial dashboard (FLAGSHIP).** StatTiles: available balance (emphasis), pending settlement, this week/month, avg per job. TrendAreaChart weeklySeries (currency). "How your payout is calculated" explainer (rates from `data.rates`, `WorkerPayoutCard` with a computePrice(800) example). Transactions table (FLAGSHIP): Service / Date / Gross / Platform / Welfare / TDS / Net / Status; row click → dialog with `WorkerPayoutCard` (recompute via `computePrice(txn.gross - txn.welfareContribution)`). Payout history list. Fine print: rates set by cooperative policy (link to Governance).
+   112→- `worker-welfare` — **Benefits portal (FLAGSHIP).** Benefits cards (name, status badge, meta, value, policy ref): health, accident, pension, skill, emergency. Fund summary (pension pot, YTD contributions, cooperative match). Contributions table (date, booking ref, amount, balance after — tnum). Claims (type, ref, amount, status, submitted, decision note; "New claim" dialog → `useSubmitClaim`). Eligibility rules accordion.
+   113→- `worker-governance` — **Member experience (FLAGSHIP), NOT a settings page.** Membership card (SGW-0117, member since, share capital ₹1,000, one member one vote). Active proposals: full cards — code, title, summary, description (collapsible), fiscal note, closes date + days left, participation bar (votes/eligible + quorum marker), tally (Approve/Reject/Abstain bars), my vote; if not voted: Approve/Reject/Abstain (AlertDialog → `useVote`; after: "You voted ✓"). Past proposals w/ outcomes. Meetings (date, time, venue, agenda, mode). Dividend card (FY, surplus, patronage bonus, my share, note). Announcements.
+   114→- `worker-verification` — Overall banner (Verified member + since), 4 checks with StatusBadge + date + reference, certifications (name, issuer, credential ID, validity), renewal note, "(simulated)" fine print.
+   115→- `worker-skills` — Credits summary, courses: completed (certificate badge + date), in progress (progress bar), available (Enroll → toast). Cross-link to governance training fund proposal ("voting now").
+   116→- `worker-support` — Worker categories: Grievance / Payout issue / Customer dispute / Verification issue. Ticket list + new ticket dialog + thread view.
+   117→- `worker-profile` — Public profile preview (what customers see), edit bio (local), skills, service area, availability summary, stats.
+   118→
+   119→### Admin (Task 2-c) — `src/components/admin/`
+   120→- `admin-overview` — **Enterprise operations screen (FLAGSHIP).** KPI strip (8 StatTiles: active workers, active customers, bookings today, completed today, pending verifications, open disputes, transaction volume today, welfare pool total). Alerts row (AlertBanner w/ actions navigating to the right admin routes). Bookings trend 14d (TrendAreaChart), category demand (ValueBarChart), quality per category (HBarList), worker utilization (HBarList), geographic distribution (HBarList by locality). Recent bookings table (ref, customer, worker, service, scheduled, status, total). Group KPIs as a compact strip; lead with alerts + operational flow.
+   121→- `admin-forecast` — **Demand forecasting dashboard (FLAGSHIP).** Header: generated time, week summary (predicted vs last week, avg confidence, total gap). Category selector chips (All + 6). Main visual: for selected category, CompareBarChart predicted vs available workers across the 7 days × 3 slots (build SeriesPoint[] from cells: label `Tue 8–12`, value predicted, secondary availableWorkers). Matrix table: rows days, columns slots, cell shows predicted + workers with gap coloring (green ok / amber gap ≤5 / red gap >5). Peaks: ForecastPeak cards (day, slot, category, demand level, predicted, available, gap, recommended action + action button → toast "Notification drafted for evening-shift members (simulated)"). "How the forecast works" note.
+   122→- `admin-workers` — Table: name+avatar, trade, category, locality, status, rating, completed, on-time %, week jobs, week earnings, member since. Status filter chips + search. Row click → detail dialog (verification items, certifications, availability, stats, recent bookings, earnings summary; actions: Suspend → toast).
+   123→- `admin-verifications` — **Verification workflow.** Queue stats (pending, avg days, verified this month). Queue list: applicant, applied date, days in queue, 4 checks as dot indicators, status. Select → detail: each check with status + note + reference + date; certifications; decisions: Approve / Request action / Reject (AlertDialogs with note → `useVerificationDecision`).
+   124→- `admin-bookings` — Filters (status select + search). Table: ref, created, customer, worker, service, scheduled, status, payment, total. Row → detail dialog: full info + timeline + `CustomerPriceLines`.
+   125→- `admin-disputes` — **Case management.** Stats strip (open, escalated, awaiting response, resolved this month). List: reference, raised by (role + name), type, subject, priority, status, assigned, updated. Detail: description, related booking, message thread, resolution note; actions: assign (select from Meera Kulkarni / Kiran Rao / Finance Desk — local + toast), reply (local append + toast "Reply sent (simulated)"), Resolve (dialog w/ resolution → `useResolveDispute`).
+   126→- `admin-finance` — Revenue series (TrendAreaChart, commission by week), KPI tiles (commission month, GST collected, welfare pool month + total, payouts pending/processed, TDS remitted, dispute holds), reconciliation table (label, amount, expected, matched/variance). Payout batch note. Transparent-by-design note.
+   127→- `admin-governance` — Participation trend (LineTrend), active proposals w/ tallies + participation bars + close dates, past outcomes, "Publish proposal" dialog (title, summary, description, category → `useCreateProposal`), quorum note.
+   128→- `admin-categories` — Category table/cards (name, active workers, bookings 30d, avg rating) → expandable service list (name, duration, unit, basePrice inline-edit → `useUpdateServiceRate`), note "changes apply to new bookings".
+   129→- `admin-policies` — Rates editor (commission %, welfare %, GST %, TDS %) + Save (AlertDialog warning "affects new bookings + notifies members" → `useUpdatePolicy`), policy text cards (surge, cancellation, dispute window, min wage), last updated meta.
+   130→- `admin-audit` — Table: time (relative), actor + role badge, action, entity, severity dot. Severity filter. Clean, boring, trustworthy.
+   131→
+   132→## 6. Quality bar for every screen
+   133→
+   134→- Screen answers: What is happening? Why? What can I do next?
+   135→- Loading skeletons match final layout. No layout jump. No dangling spinners.
+   136→- Numbers: always `money()`/`num()` + `.tnum`. Dates: `dateTimeLabel()`.
+   137→- Buttons: primary action per screen max 1-2; rest outline/ghost.
+   138→- Destructive actions: AlertDialog confirm with clear consequence microcopy.
+   139→- Dense lists: `max-h-[400px] overflow-y-auto scroll-slim` where appropriate.
+   140→- Test with `agent-browser` (installed): `agent-browser open http://localhost:3000/#/<route-name>` … verify rendering + console errors (`agent-browser errors`). Dev server runs on :3000 already. Note: opening a hash URL directly lands on the screen without the welcome screen — that's fine.
+   141→- Run `bun run lint` at the end; fix everything in your files.
+   142→
+   143→## 7. When you finish
+   144→
+   145→Append to `/home/z/my-project/worklog.md` (append, never overwrite) with the Task ID template you were given. List every file you created.
+   146→
+   147→---
+   148→
+   149→## 8. Post-build additions (round 4 — keep in sync when extending)
+   150→
+   151→- **Booking-scoped chat** — `BookingMessage[]` lives on `Booking.messages`. Shared component `shared/booking-chat.tsx` (`BookingChat`) serves both sides (`viewerRole: "customer" | "worker"`): bubbles align by viewer, quick-reply chips per role, composer open while status is pre-completion. Endpoint `POST /bookings/:id/messages { text }` (author derived from `x-demo-user`; ownership enforced — only the booking's customer/worker may post). Sending notifies the other party with a deep-link route. Seeded threads: `bk-105` (Ananya↔Arjun), `bk-305`, `bk-306` (Priya). `useSendMessage` invalidates `["booking", id]`.
+   152→- **CSV export** — `lib/csv.ts` (`downloadCsv`, `csvDateStamp`). Wired on: admin bookings ("Export CSV", full pricing columns), admin workers ("Export CSV", member register), customer payments ("Statement (CSV)" + per-invoice download inside the invoice dialog). All exports reflect the active filters.
+   153→- **Seed versioning** — `src/server/db.ts` exports `getStore()` guarded by `SEED_VERSION`. **Bump `SEED_VERSION` whenever you change anything in `src/server/seed.ts`** — a stale in-memory store from a previous HMR cycle reseeds automatically; no dev-server restart needed.
+   154→- **Future-relative seeds** — seeded chat times are offsets from the scheduled slot and clamped into the past at seed time (whole-thread shift, ordering preserved). `relativeTime()` renders future timestamps as "in …" instead of "… ago".
+   155→- **Sidebar active context** — detail routes map to their parent nav item via `PARENT_ROUTE` in `platform/sidebar.tsx` (e.g. `worker-job` → "Job opportunities"). Nav badges carry human tooltips (`BADGE_HINTS`).
+   156→- **Notification center (round 5)** — shared `NotificationCenterScreen({ role })` in `shared/notification-center.tsx`, rendered at `customer/worker/admin-notifications` (ROLE prefix rules apply). Day-grouped (Today/Yesterday/This week/Earlier), kind filters with counts, unread rows carry a 3px primary inset border, row click deep-links + marks read, "Mark all read" sends explicit `{ ids }` (scoped; the server's `{ all }` branch is also user-scoped now). Nav entries with `badgeKey: "notifications"` (sidebar badge counts are fed by `platform/sidebar.tsx`).
+   157→- **Standing orders (round 5)** — `Booking.recurrence? ("weekly"|"monthly")`, `seriesId?`, `occurrenceIndex?`, `seriesEnded?`. `POST /bookings { recurrence }`; on confirm of a recurring booking the server auto-creates the next occurrence (+7/+30 days, same member/rate/time, `pending_acceptance`, both parties notified); cancel ends the series. `/worker/earnings` summary includes `recurringMonthly` + `standingOrders`; `/admin/overview` includes `standingOrders`; `/customer/overview` includes `activeStandingOrders`. UI: recurrence radio cards in the booking flow (slot step), `StandingOrderChip` (customer parts), `StandingOrderTag`/`StandingOrderNote` + recurring-income banner (worker), chips + CSV column (admin). Seeded series: so-001 (Ananya↔Meena weekly), so-002 (Manish↔Rakesh monthly — a pending offer), so-003 (Divya↔Arjun monthly).
+   158→- **POST /bookings is input-hardened** — clear error strings for unknown category/service/worker, non-positive charge, short description, wrong address, bad recurrence.
+   159→- **Round-5 styling baselines** — DataTable thead carries `bg-muted/70`; AlertBanner has a 3px severity left accent; active TabsTrigger is `font-semibold text-primary`; `--muted-foreground` is `oklch(0.47 0.014 110)`; StatTile centers accessories vertically and wraps sub-labels (line-clamp-2); KpiStrip cells reserve two sub lines. Follow these when adding new screens.
+   160→- **Dark mode (round 6)** — `next-themes` (`attribute="class"`, `defaultTheme="light"`, `enableSystem={false}`) wired in `platform/providers.tsx`; `ThemeToggle` exported from `platform/header.tsx` (also on the welcome console). Theme tokens: `.dark` block in `globals.css` + `--primary-muted` and `--success/warning/destructive/info-deep` text tokens. **Rule: never hardcode oklch/hex colors in components — use semantic tokens** (`text-success-deep`, `bg-warning-muted`, `border-destructive/40`, `bg-primary-muted`, `text-chart-2/4`, …). DataTable renders `mobileCard` rows itself below `md` (single source of truth; no separate `MobileRows` needed).
+   161→- **Training hub (round 6)** — `TrainingCourse` + `TrainingEnrollment` (store: `trainingCourses`/`trainingEnrollments`). Routes: `GET /worker/training`, `POST /worker/training/:courseId/{enroll,progress,complete}` (complete requires 100%, issues `SCT-2025-###` certificate + notification + audit), `GET /admin/training` (coverage), `GET /workers/:id` extended with derived `certificates`. Screens: `worker/training.tsx` (`#/worker-training`), `admin/training.tsx` (`#/admin-training`), customer worker profile shows the "Cooperative training — certified" trust block. Hooks: `useWorkerTraining`, `useEnrollCourse`, `useCourseProgress`, `useCompleteCourse`, `useAdminTraining`.
+   162→- **POST /matching is input-hardened (round 6)** — same contract as POST /bookings (unknown category/service, non-positive charge, invalid slot → clear error strings).
+   163→- **Booking prefill (round 6)** — `BookingPrefill` in `customer/prefill.ts` now carries `description` + `notes` ("Book again" from history bookings and completed booking detail restarts the flow with the same service, member and description).
+   164→

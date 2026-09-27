@@ -17,6 +17,7 @@ import { useAppStore, useRole, DEMO_USER_ID, ROLE_HOME } from "@/store/app-store
 import { useMarkNotificationsRead, useNotifications, useSession } from "@/hooks/use-api";
 import { pageMeta, MOBILE_NAV } from "./nav";
 import { PersonAvatar } from "@/components/shared";
+import { CommandPalette } from "./command-palette";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Sidebar } from "./sidebar";
@@ -102,6 +103,9 @@ export function Header({ badges }: { badges: Record<string, number> }) {
         <p className="truncate text-sm font-semibold tracking-tight">{meta.title || "Welcome"}</p>
       </div>
 
+      {/* Global command palette (Ctrl/Cmd+K) */}
+      <CommandPalette />
+
       {/* Prototype indicator */}
       <span className="hidden items-center gap-1.5 rounded-sm border border-dashed px-2 py-1 text-[10.5px] font-medium uppercase tracking-wide text-muted-foreground lg:inline-flex">
         <span className="h-1.5 w-1.5 rounded-full bg-warning" />
@@ -161,7 +165,7 @@ export function Header({ badges }: { badges: Record<string, number> }) {
                   <button
                     key={n.id}
                     className={cn(
-                      "flex w-full gap-3 border-b border-border/60 px-5 py-3.5 text-left transition-colors hover:bg-muted/50",
+                      "flex w-full gap-3 border-b border-border/60 px-5 py-3.5 text-left transition-colors hover:bg-muted/50 outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset",
                       !n.read && "bg-primary-muted",
                     )}
                     onClick={() => {
@@ -281,7 +285,7 @@ export function MobileNav({ badges }: { badges: Record<string, number> }) {
               key={t.route}
               onClick={() => navigate(t.route)}
               aria-current={active ? "page" : undefined}
-              className={cn("relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[10.5px] font-medium", active ? "text-primary" : "text-muted-foreground")}
+              className={cn("relative flex flex-1 flex-col items-center gap-1 py-2.5 text-[10.5px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2", active ? "text-primary" : "text-muted-foreground")}
             >
               <t.icon className="h-5 w-5" strokeWidth={1.9} />
               {t.label}
@@ -294,7 +298,7 @@ export function MobileNav({ badges }: { badges: Record<string, number> }) {
   );
 }
 
-export function useSidebarBadges(): Record<string, number> {
+export function useSidebarBadges(): Record<string, number | string> {
   const role = useRole();
   const { data: notifications } = useNotifications();
   const badgeCount = notifications?.unread ?? 0;

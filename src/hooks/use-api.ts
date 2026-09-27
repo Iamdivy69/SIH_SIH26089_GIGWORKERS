@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import { DEMO_USER_ID, useRole } from "@/store/app-store";
 import type {
   AdminOverview,
+  AdminSurplusView,
   AdminTrainingData,
   AppNotification,
   Booking,
@@ -15,11 +16,14 @@ import type {
   FinanceOverview,
   ForecastData,
   GovernanceData,
+  GovernanceProposal,
+  InvoiceData,
   OpenJobRequest,
   PlatformPolicy,
   ServiceCategory,
   ServiceCategoryId,
   SkillCourse,
+  SurplusAllocationKey,
   SupportTicket,
   TrainingCertificate,
   TrainingEnrollment,
@@ -632,6 +636,51 @@ export function useUpdatePolicy() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-policies"] });
       toast.success("Policy updated", { description: "Members have been notified of the change." });
+    },
+  });
+}
+
+/* --------------------------- invoices (7-a) --------------------------- */
+
+export function useInvoice(bookingId: string | undefined) {
+  return useQuery({
+    queryKey: ["invoice", bookingId],
+    queryFn: () => apiClient.get<InvoiceData>(`invoices/${bookingId}`),
+    enabled: Boolean(bookingId),
+    retry: false,
+  });
+}
+
+/* ----------------------- surplus & dividends (7-c) ----------------------- */
+
+export function useAdminSurplus() {
+  return useQuery({ queryKey: ["admin-surplus"], queryFn: () => apiClient.get<AdminSurplusView>("admin/surplus") });
+}
+
+export function useUpdateSurplusAllocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (allocations: Partial<Record<SurplusAllocationKey, number>>) =>
+      apiClient.post<AdminSurplusView>("admin/surplus", { allocations }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-surplus"] });
+      toast.success("Draft allocation saved", { description: "The dividend preview below reflects the new split." });
+    },
+  });
+}
+
+export function useSubmitSurplusProposal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.post<{ proposal: GovernanceProposal; surplus: AdminSurplusView }>("admin/surplus/propose"),
+    onSuccess: ({ proposal }) => {
+      qc.invalidateQueries({ queryKey: ["admin-surplus"] });
+      qc.invalidateQueries({ queryKey: ["admin-governance"] });
+      qc.invalidateQueries({ queryKey: ["governance"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      toast.success(`${proposal.code} sent to member vote`, {
+        description: `Dividend pool ${proposal.fiscalNote?.match(/₹[\d,]+/)?.[0] ?? "—"} — all 216 members can now vote for 14 days.`,
+      });
     },
   });
 }

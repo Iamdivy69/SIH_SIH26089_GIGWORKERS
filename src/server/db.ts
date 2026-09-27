@@ -1,4 +1,6 @@
 import type {
+  AdminSurplusView,
+  AdminTrainingData,
   AppNotification,
   AuditEntry,
   Booking,
@@ -7,24 +9,28 @@ import type {
   Customer,
   GovernanceData,
   GovernanceProposal,
+  InvoiceData,
   OpenJobRequest,
   Payout,
   PlatformPolicy,
   Review,
   ServiceCategory,
   SkillCourse,
+  SurplusAllocationLine,
+  SurplusData,
+  SurplusMemberPreview,
   SupportTicket,
   Transaction,
   TrainingCertificate,
   TrainingCourse,
   TrainingEnrollment,
-  AdminTrainingData,
   Worker,
   WorkerAvailabilitySlot,
   WorkerOverview,
   WorkerTrainingData,
   WelfareProfile,
 } from "@/lib/types";
+import { amountInWords } from "@/lib/format";
 import { computePrice } from "@/lib/rates";
 import { CATEGORIES, CHECKLISTS, serviceById } from "./catalog";
 import {
@@ -67,6 +73,7 @@ interface Store {
   trainingEnrollments: TrainingEnrollment[];
   policy: PlatformPolicy;
   governance: GovernanceData;
+  surplus: SurplusData;
   forecast: ReturnType<typeof generateForecast>;
   savedWorkers: string[]; // customer's shortlist
   openRequests: OpenJobRequest[];
@@ -77,7 +84,7 @@ const globalRef = globalThis as unknown as { __sahyogStore?: Store; __sahyogSeed
 
 /** Bump whenever seed data changes — a stale store from a previous HMR cycle reseeds automatically.
  *  13 = training-hub seed + reseeds away task 6-b's live E2E test enrolments. */
-const SEED_VERSION = 14;
+const SEED_VERSION = 15;
 
 function seedStore(): Store {
   const store: Store = {
@@ -95,6 +102,7 @@ function seedStore(): Store {
     trainingEnrollments: structuredClone(TRAINING_ENROLLMENTS),
     policy: structuredClone(SEED_POLICY),
     governance: buildGovernance(),
+    surplus: seedSurplus(),
     forecast: generateForecast(),
     savedWorkers: ["w-meena", "w-priya"],
     openRequests: [],
@@ -174,6 +182,299 @@ export function getStore(): Store {
 /* ------------------------------------------------------------------ */
 
 const DAY = 86400000;
+
+/* ------------------------------------------------------------------ */
+/* Surplus & dividend allocation (cooperative annual distribution)     */
+/* ------------------------------------------------------------------ */
+
+/** Operating costs as a share of platform-fee income (simulated:
+ *  centre rent, staff, tool bank, training stipends, insurance admin). */
+const OPERATING_COST_SHARE = 0.62;
+
+const SURPLUS_LINES: Omit<SurplusAllocationLine, "pct">[] = [
+  {
+    key: "reserves",
+    label: "Welfare & stability reserve",
+    description: "Strengthens the welfare fund and cushions lean months — the co-op's safety net for members.",
+    tone: "info",
+    minPct: 20,
+  },
+  {
+    key: "dividend",
+    label: "Member patronage dividend",
+    description: "Distributed to members in proportion to the service value they completed this year.",
+    tone: "success",
+    minPct: 10,
+  },
+  {
+    key: "training",
+    label: "Training & certification fund",
+    description: "Funds free skill courses, wages for training hours and certification assessments.",
+    tone: "primary",
+    minPct: 5,
+  },
+  {
+    key: "community",
+    label: "Community programmes",
+    description: "Ward-level safety drives, member health camps and the tool-bank upgrade cycle.",
+    tone: "warning",
+    minPct: 0,
+  },
+  {
+    key: "contingency",
+    label: "Contingency provision",
+    description: "Held for disputes, refunds and unplanned operational shocks.",
+    tone: "neutral",
+    minPct: 0,
+  },
+];
+
+const SEED_ALLOCATION_PCT: Record<SurplusAllocationLine["key"], number> = {
+  reserves: 35,
+  dividend: 40,
+  training: 15,
+  community: 7,
+  contingency: 3,
+};
+
+/** Patronage basis: completed service value (transaction gross) per member this FY. */
+function patronageByWorker(): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const t of getStore().transactions) map.set(t.workerId, (map.get(t.workerId) ?? 0) + t.gross);
+  return map;
+}
+
+function seedSurplus(): SurplusData {
+  const platformFeesYtd = Math.round(SEED_TRANSACTIONS.reduce((a, t) => a + t.platformFee, 0));
+  const operatingCostsYtd = Math.round(platformFeesYtd * OPERATING_COST_SHARE);
+  const patronageTotal = SEED_TRANSACTIONS.reduce((a, t) => a + t.gross, 0);
+  const sharingMembers = new Set(SEED_TRANSACTIONS.map((t) => t.workerId)).size;
+  return {
+    fiscalYear: "2026-27",
+    platformFeesYtd,
+    operatingCostsYtd,
+    surplusYtd: platformFeesYtd - operatingCostsYtd,
+    patronageTotal,
+    sharingMembers,
+    allocations: SURPLUS_LINES.map((l) => ({ ...l, pct: SEED_ALLOCATION_PCT[l.key] })),
+    status: "draft",
+    lastDistributed: {
+      fiscalYear: "2025-26",
+      surplus: 1840000,
+      patronageBonus: 920000,
+      members: 216,
+      distributedAt: new Date(Date.now() - 120 * DAY).toISOString(),
+    },
+  };
+}
+
+/** Admin view of the surplus plan with the live dividend preview. */
+export function surplusView(): AdminSurplusView {
+  const surplus = getStore().surplus;
+  const patronage = patronageByWorker();
+  const dividendPool = Math.round((surplus.surplusYtd * (surplus.allocations.find((a) => a.key === "dividend")?.pct ?? 0)) / 100);
+  const memberPreview: SurplusMemberPreview[] = [...patronage.entries()]
+    .map(([workerId, p]) => {
+      const worker = getStore().workers.find((w) => w.id === workerId);
+      const sharePct = surplus.patronageTotal > 0 ? (p / surplus.patronageTotal) * 100 : 0;
+      return {
+        workerId,
+        name: worker?.name ?? workerId,
+        trade: worker?.tradeTitle ?? "—",
+        patronage: p,
+        sharePct: Math.round(sharePct * 10) / 10,
+        dividend: Math.round((dividendPool * p) / Math.max(1, surplus.patronageTotal)),
+      };
+    })
+    .sort((a, b) => b.patronage - a.patronage);
+  return {
+    ...surplus,
+    dividendPool,
+    avgDividend: surplus.sharingMembers > 0 ? Math.round(dividendPool / surplus.sharingMembers) : 0,
+    memberPreview,
+  };
+}
+
+export function updateSurplusAllocation(pcts: Partial<Record<SurplusAllocationLine["key"], number>>): SurplusData {
+  const surplus = getStore().surplus;
+  if (surplus.status === "in_vote") throw new Error("This allocation is with the members for voting — a new draft must be opened after the vote closes");
+  const next = surplus.allocations.map((a) => {
+    const raw = pcts[a.key];
+    if (raw === undefined) return a;
+    const pct = Math.round(Number(raw));
+    if (!Number.isFinite(pct)) throw new Error(`Invalid percentage for ${a.label}`);
+    if (pct < a.minPct) throw new Error(`${a.label} cannot go below ${a.minPct}% — policy guardrail`);
+    if (pct > 100) throw new Error(`${a.label} cannot exceed 100%`);
+    return { ...a, pct };
+  });
+  const sum = next.reduce((acc, a) => acc + a.pct, 0);
+  if (sum !== 100) throw new Error(`Allocation must total 100% — currently ${sum}%`);
+  surplus.allocations = next;
+  return surplus;
+}
+
+/** Publishes the current allocation as a board proposal for member voting. */
+export function submitSurplusProposal(actor: string): { proposal: GovernanceProposal; surplus: SurplusData } {
+  const store = getStore();
+  const surplus = store.surplus;
+  if (surplus.status === "in_vote") throw new Error("This allocation is already with the members for voting");
+  if (surplus.allocations.reduce((a, l) => a + l.pct, 0) !== 100) throw new Error("Allocation must total 100% before it can be voted on");
+
+  /* Continue the PRO-2026-NNN numbering past every existing proposal. */
+  const existing = [...store.governance.activeProposals, ...store.governance.pastProposals]
+    .map((p) => Number(p.code.match(/(\d{3})$/)?.[1] ?? 0))
+    .reduce((a, n) => Math.max(a, n), 0);
+  const code = `PRO-2026-0${String(existing + 1).padStart(2, "0")}`;
+  const closesAt = new Date(Date.now() + 14 * DAY).toISOString();
+  const dividendPool = Math.round((surplus.surplusYtd * (surplus.allocations.find((a) => a.key === "dividend")?.pct ?? 0)) / 100);
+  const parts = surplus.allocations.filter((a) => a.pct > 0).map((a) => `${a.pct}% ${a.label.toLowerCase()}`);
+
+  const proposal: GovernanceProposal = {
+    id: `gp-surplus-${existing + 1}`,
+    code,
+    title: `FY ${surplus.fiscalYear} surplus allocation — ${parts.join(", ")}`,
+    summary: `Distribute the FY ${surplus.fiscalYear} surplus of ₹${surplus.surplusYtd.toLocaleString("en-IN")} across reserve, patronage dividend, training, community and contingency heads.`,
+    description: `The board proposes distributing this year's surplus as follows: ${surplus.allocations
+      .filter((a) => a.pct > 0)
+      .map((a) => `${a.label} — ${a.pct}% (₹${Math.round((surplus.surplusYtd * a.pct) / 100).toLocaleString("en-IN")})`)
+      .join("; ")}. Dividends are paid strictly in proportion to each member's completed service value (patronage), never per share — the estimated dividend pool is ₹${dividendPool.toLocaleString(
+      "en-IN",
+    )} across ${surplus.sharingMembers} sharing members. One member, one vote applies to this decision as to all others.`,
+    status: "active",
+    category: "Finance & surplus",
+    openedAt: new Date().toISOString(),
+    closesAt,
+    participationPct: 0,
+    eligibleMembers: 216,
+    votes: { approve: 0, reject: 0, abstain: 0 },
+    quorumPct: 50,
+    fiscalNote: `₹${surplus.surplusYtd.toLocaleString("en-IN")} surplus · dividend pool ₹${dividendPool.toLocaleString("en-IN")} · welfare reserve untouched below ${surplus.allocations.find((a) => a.key === "reserves")?.minPct ?? 20}% floor`,
+    proposedBy: `${actor} (Operations)`,
+  };
+
+  store.governance.activeProposals.unshift(proposal);
+  surplus.status = "in_vote";
+  surplus.proposal = { id: proposal.id, code: proposal.code, closesAt };
+
+  for (const w of store.workers.filter((w) => w.status === "verified")) {
+    notify(w.id, {
+      kind: "governance",
+      title: "Surplus allocation vote open",
+      body: `${code} — the board's FY ${surplus.fiscalYear} surplus proposal is ready for member voting. Dividend pool: ₹${dividendPool.toLocaleString("en-IN")}.`,
+      route: { name: "worker-governance" },
+    });
+  }
+  audit(`Published surplus allocation ${code} for member voting (dividend pool ₹${dividendPool.toLocaleString("en-IN")})`, "Surplus allocation", actor, "admin", "notice");
+  return { proposal, surplus };
+}
+
+/* ------------------------------------------------------------------ */
+/* Tax invoice for paid bookings                                       */
+/* ------------------------------------------------------------------ */
+
+const COOP_INVOICE_HEADER = {
+  name: "Sahyog Seva Sanstha (Co-operative)",
+  address: ["Sahyog Seva Centre, 12 Lane 3, Kothrud", "Pune, Maharashtra 411038"],
+  registration: "Reg. No. MCS/PUN/2019/4821 · Multi-state co-operative society",
+  email: "accounts@sahyog.example",
+};
+const GSTIN = "27AAECS1234F1Z5";
+const SAC_CODE = "998721";
+
+/** Indian fiscal year label (Apr–Mar) from a date, e.g. Sep 2026 → "2026-27". */
+function fiscalYearOf(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "2026-27";
+  const year = d.getFullYear();
+  const fy = d.getMonth() >= 3 ? year : year - 1;
+  return `${fy}-${String((fy + 1) % 100).padStart(2, "0")}`;
+}
+
+/** Invoice date = the moment payment settled (timeline "Payment settled" event,
+ *  else the booking's last timeline entry, else creation). */
+function invoiceDateFor(booking: Booking): string {
+  const settled = booking.timeline.find((e) => /settl/i.test(e.label));
+  return settled?.at ?? booking.timeline[booking.timeline.length - 1]?.at ?? booking.createdAt;
+}
+
+export function invoiceFor(bookingId: string): InvoiceData {
+  const store = getStore();
+  const booking = bookingById(bookingId);
+  if (!booking) throw new Error("Booking not found");
+  if (!["authorized", "settled"].includes(booking.paymentStatus)) {
+    throw new Error("The invoice becomes available once payment is processed");
+  }
+  const customer = customerById(booking.customerId);
+  const worker = workerById(booking.workerId);
+  const txn = store.transactions.find((t) => t.bookingId === booking.id);
+  const address = customer.addresses.find((a) => a.id === booking.addressId) ?? customer.addresses[0];
+  const invoiceDate = invoiceDateFor(booking);
+  const fiscalYear = fiscalYearOf(invoiceDate);
+  const p = booking.price;
+
+  const items: InvoiceData["items"] = [
+    {
+      description: booking.title,
+      detail: booking.description,
+      qty: 1,
+      unit: "visit",
+      amount: p.serviceCharge,
+    },
+    {
+      description: "Co-operative welfare contribution",
+      detail: "Credited to the service member's welfare fund (health, accident, pension).",
+      qty: 1,
+      unit: "—",
+      amount: p.welfareContribution,
+    },
+    {
+      description: "Platform processing & coordination",
+      detail: "Matching, scheduling, escrow and dispute resolution operated by the co-operative.",
+      qty: 1,
+      unit: "—",
+      amount: p.platformFee,
+    },
+    {
+      description: "GST on processing fee",
+      detail: "18% applied on the platform processing fee only.",
+      qty: 1,
+      unit: "—",
+      amount: p.gst,
+    },
+  ];
+
+  return {
+    invoiceNo: `INV/${fiscalYear}/${booking.reference.replace("SG-", "")}`,
+    invoiceDate,
+    fiscalYear,
+    bookingId: booking.id,
+    bookingRef: booking.reference,
+    sacCode: SAC_CODE,
+    gstin: GSTIN,
+    coop: COOP_INVOICE_HEADER,
+    billTo: {
+      name: customer.name,
+      customerId: customer.id.toUpperCase(),
+      address: [address.line, `${address.locality}, ${address.city} ${address.pincode}`],
+    },
+    serviceBy: { name: worker.name, memberNo: worker.cooperativeMemberId, trade: worker.tradeTitle },
+    items,
+    totals: p,
+    payment: {
+      method: "UPI · Sahyog escrow",
+      reference: txn?.id ?? `pay-${booking.reference.toLowerCase()}`,
+      status: booking.paymentStatus === "settled" ? "Settled to member" : "Held in escrow",
+      paidAt: invoiceDate,
+    },
+    amountInWords: `Rupees ${amountInWords(p.customerTotal)} Only`,
+    notes: [
+      `Welfare contribution of ₹${p.welfareContribution} is credited to the service member's welfare fund — it is not co-operative revenue.`,
+      `The service member receives ₹${p.workerNetPayout} net (₹${p.workerGross} gross less ₹${p.workerTds} TDS under section 194-O, simulated).`,
+      "This is a computer-generated invoice and does not require a signature.",
+      "Dispute window: 7 days from service completion, in accordance with co-operative policy.",
+    ],
+  };
+}
 
 export function notify(userId: string, n: Omit<AppNotification, "id" | "userId" | "createdAt" | "read">) {
   const store = getStore();

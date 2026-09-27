@@ -21,12 +21,16 @@ import {
   customerById,
   enrollInCourse,
   getStore,
+  invoiceFor,
   markModuleComplete,
   notify,
   recurringMonthlyFor,
   settleBooking,
+  submitSurplusProposal,
+  surplusView,
   trainingCertificatesFor,
   updatePolicy,
+  updateSurplusAllocation,
   voteOnProposal,
   welfareProfileFor,
   workerById,
@@ -1014,6 +1018,33 @@ route("GET", "/admin/finance", () => {
       { label: "Dispute holds", amount: 4983, expected: 4200, status: "variance" as const },
     ],
   };
+});
+
+route("GET", "/invoices/:bookingId", (_req, params, _b, user) => {
+  /* The invoice belongs to the booking's customer — other demo users get a clear error. */
+  const booking = bookingById(params.bookingId);
+  if (!booking) throw new Error("Booking not found");
+  if (user && user.startsWith("c-") && user !== booking.customerId) {
+    throw new Error("This invoice belongs to another customer");
+  }
+  return invoiceFor(params.bookingId);
+});
+
+route("GET", "/admin/surplus", () => surplusView());
+
+route("POST", "/admin/surplus", (_req, _p, body) => {
+  const pcts = body?.allocations ?? body;
+  if (!pcts || typeof pcts !== "object" || Array.isArray(pcts)) {
+    throw new Error("Send { allocations: { reserves, dividend, training, community, contingency } }");
+  }
+  updateSurplusAllocation(pcts);
+  audit("Surplus allocation draft updated", "Surplus allocation", "Kiran Rao", "admin");
+  return surplusView();
+});
+
+route("POST", "/admin/surplus/propose", () => {
+  const { proposal } = submitSurplusProposal("Kiran Rao");
+  return { proposal, surplus: surplusView() };
 });
 
 route("GET", "/admin/governance", () => {

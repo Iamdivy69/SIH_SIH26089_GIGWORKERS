@@ -116,6 +116,40 @@ export function pctLabel(n: number): string {
   return `${Math.round(n)}%`;
 }
 
+/* ------------------------------------------------------------------ */
+/* Amount in words (Indian numbering) — used on tax invoices           */
+/* ------------------------------------------------------------------ */
+
+const ONES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+function twoDigits(n: number): string {
+  if (n < 20) return ONES[n];
+  return TENS[Math.floor(n / 10)] + (n % 10 ? " " + ONES[n % 10] : "");
+}
+
+function threeDigits(n: number): string {
+  const h = Math.floor(n / 100);
+  const rest = n % 100;
+  return (h ? ONES[h] + " Hundred" + (rest ? " " : "") : "") + (rest ? twoDigits(rest) : "");
+}
+
+/** "Eight Hundred Eighty-One" — Indian system (crore / lakh / thousand). */
+export function amountInWords(n: number): string {
+  const total = Math.round(Math.abs(n));
+  if (total === 0) return "Zero";
+  const crore = Math.floor(total / 10000000);
+  const lakh = Math.floor((total % 10000000) / 100000);
+  const thousand = Math.floor((total % 100000) / 1000);
+  const rest = total % 1000;
+  const parts: string[] = [];
+  if (crore) parts.push(`${threeDigits(crore)} Crore`);
+  if (lakh) parts.push(`${twoDigits(lakh)} Lakh`);
+  if (thousand) parts.push(`${twoDigits(thousand)} Thousand`);
+  if (rest) parts.push(threeDigits(rest));
+  return parts.join(" ");
+}
+
 /** e.g. "4.8" rating → "4.8 / 5" */
 export function ratingLabel(r: number): string {
   return `${r.toFixed(1)} / 5`;

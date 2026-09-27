@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FileText } from "lucide-react";
+import { Download, FileText, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -180,6 +180,7 @@ export function PaymentsScreen() {
         workerName={selected ? workers.get(selected.workerId)?.name : undefined}
         onClose={() => setSelected(null)}
         onOpenBooking={(id) => navigate("customer-booking", { bookingId: id })}
+        onOpenInvoice={(id) => navigate("customer-invoice", { bookingId: id })}
       />
     </div>
   );
@@ -190,11 +191,13 @@ function InvoiceDialog({
   workerName,
   onClose,
   onOpenBooking,
+  onOpenInvoice,
 }: {
   booking: Booking | null;
   workerName?: string;
   onClose: () => void;
   onOpenBooking: (id: string) => void;
+  onOpenInvoice: (id: string) => void;
 }) {
   if (!booking) return null;
   const address = addressById(booking.addressId);
@@ -256,34 +259,48 @@ function InvoiceDialog({
           <Button variant="ghost" size="sm" onClick={() => { onClose(); onOpenBooking(booking.id); }} className="text-muted-foreground">
             View booking
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              downloadCsv(
-                `invoice-${invoiceNo(booking.id).toLowerCase()}`,
-                ["Sahyog Services Cooperative — tax invoice (simulated)"],
-                [
-                  ["Invoice no.", invoiceNo(booking.id)],
-                  ["Booking reference", booking.reference],
-                  ["Issued", dateShort(booking.scheduledAt)],
-                  ["Billed to", "Ananya Deshpande"],
-                  ["Service", booking.title],
-                  ["Member", workerName ?? "Member"],
-                  [],
-                  ["Line item", "Amount (INR)"],
-                  ["Service charge", booking.price.serviceCharge],
-                  ["Welfare contribution (to member's fund)", booking.price.welfareContribution],
-                  ["Platform processing fee", booking.price.platformFee],
-                  ["GST @ 18% on processing fee", booking.price.gst],
-                  ["Total", booking.price.customerTotal],
-                ],
-              );
-              toast.success("Invoice downloaded", { description: `${invoiceNo(booking.id)}.csv — line-item breakdown as shown above.` });
-            }}
-          >
-            <Download className="h-3.5 w-3.5" strokeWidth={1.9} /> Download invoice
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                downloadCsv(
+                  `invoice-${invoiceNo(booking.id).toLowerCase()}`,
+                  ["Sahyog Services Cooperative — tax invoice (simulated)"],
+                  [
+                    ["Invoice no.", invoiceNo(booking.id)],
+                    ["Booking reference", booking.reference],
+                    ["Issued", dateShort(booking.scheduledAt)],
+                    ["Billed to", "Ananya Deshpande"],
+                    ["Service", booking.title],
+                    ["Member", workerName ?? "Member"],
+                    [],
+                    ["Line item", "Amount (INR)"],
+                    ["Service charge", booking.price.serviceCharge],
+                    ["Welfare contribution (to member's fund)", booking.price.welfareContribution],
+                    ["Platform processing fee", booking.price.platformFee],
+                    ["GST @ 18% on processing fee", booking.price.gst],
+                    ["Total", booking.price.customerTotal],
+                  ],
+                );
+                toast.success("Invoice downloaded", { description: `${invoiceNo(booking.id)}.csv — line-item breakdown as shown above.` });
+              }}
+            >
+              <Download className="h-3.5 w-3.5" strokeWidth={1.9} /> Download invoice
+            </Button>
+            {["authorized", "settled"].includes(booking.paymentStatus) && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onOpenInvoice(booking.id);
+                }}
+                aria-label="View the full GST tax invoice for this booking"
+              >
+                <Receipt className="h-3.5 w-3.5" strokeWidth={1.9} /> View full invoice
+              </Button>
+            )}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
